@@ -4164,6 +4164,42 @@ function setupNewOrdersBadgeWatcher() {
   }, e => console.error('setupNewOrdersBadgeWatcher failed', e));
 }
 
+// مراقب تثبيتات جديدة للبرنامج — يشتغل بس وقت ما لوحة التحكم مفتوحة أمامك (ليس إشعار push حقيقي وقت البرنامج مغلق تماماً)
+// يشغّل نغمة تنبيه ويطلع إشعار متصفح لحظي، ويحدّث الرقم بالأعلى فوراً بدون ما تحتاج تحدّث الصفحة يدوياً
+let newInstallsWatcherStarted = false;
+function setupNewInstallsWatcher() {
+  if (newInstallsWatcherStarted) return;
+  newInstallsWatcherStarted = true;
+  if (window.Notification && Notification.permission === 'default') {
+    Notification.requestPermission().catch(()=>{});
+  }
+  let firstSnap = true;
+  db.collection('appInstalls').orderBy('installedAt','desc').limit(50).onSnapshot(snap => {
+    if (!firstSnap) {
+      snap.docChanges().forEach(ch => {
+        if (ch.type !== 'added') return;
+        const p = ch.doc.data();
+        const device = deviceInfoFromUserAgent(p.userAgent);
+        if (isNotificationSoundEnabled()) playNotificationBeep();
+        if (window.Notification && Notification.permission === 'granted') {
+          try {
+            new Notification('📲 تثبيت جديد للبرنامج', {
+              body: `${p.name || p.phone || 'مستخدم مجهول'} — ${device.label}`,
+              icon: 'icon-192.png'
+            });
+          } catch(e) { console.error(e); }
+        }
+      });
+      // نحدّث الرقم الإجمالي فوراً بدون انتظار فتح تبويب "ثبّتوا البرنامج" يدوياً
+      db.collection('appInstalls').count().get().then(c => {
+        const el = document.getElementById('installsCount');
+        if (el) el.textContent = c.data().count;
+      }).catch(()=>{});
+    }
+    firstSnap = false;
+  }, e => console.error('setupNewInstallsWatcher failed', e));
+}
+
 function enterAdminPanel() {
   document.getElementById('adminLoginCard').classList.add('hidden');
   document.getElementById('adminUser').value = '';
@@ -4174,6 +4210,7 @@ function enterAdminPanel() {
   document.getElementById('adminMenu').classList.remove('hidden');
   setupAdminNotifications();
   setupNewOrdersBadgeWatcher();
+  setupNewInstallsWatcher();
   refreshBellBadge();
   registerFcmToken('staff', currentStaffRole === 'admin' ? 'owner' : currentStaffName);
 

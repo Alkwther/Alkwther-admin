@@ -6083,11 +6083,22 @@ async function loadOnlineNow() {
           <div>
             <p style="font-weight:bold;margin:0;">🟢 ${p.name || p.phone || 'مجهول'} <span style="color:#8a90a3;font-weight:normal;font-size:12px;">${roleLabels[p.role]||''}</span></p>
             <p style="margin:4px 0 0;color:#8a90a3;">${p.phone ? '📞 '+p.phone : ''} ${p.province ? '— 📍 '+p.province : ''}</p>
+            <p style="margin:4px 0 0;color:#10203f;font-size:12px;font-weight:600;">${deviceInfoFromUserAgent(p.userAgent).label}</p>
             <p style="margin:4px 0 0;color:#8a90a3;font-size:12px;">آخر نشاط: ${new Date(p.lastActiveAt).toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'})}</p>
           </div>
         </div>
       </div>`).join('');
   } catch(e) { console.error(e); list.innerHTML = '<p style="color:#b91c1c;">تعذّر التحميل.</p>'; }
+}
+// يستنتج نوع الجهاز ونظام التشغيل من نص الـ userAgent المحفوظ وقت التثبيت
+function deviceInfoFromUserAgent(ua) {
+  if (!ua) return { label: '❔ غير معروف', os: 'unknown' };
+  if (/iPhone/i.test(ua)) return { label: '📱 آيفون (iPhone)', os: 'ios' };
+  if (/iPad/i.test(ua)) return { label: '📱 آيباد (iPad)', os: 'ios' };
+  if (/Android/i.test(ua)) return { label: '🤖 أندرويد (Android)', os: 'android' };
+  if (/Windows/i.test(ua)) return { label: '💻 ويندوز (Windows)', os: 'windows' };
+  if (/Macintosh|Mac OS/i.test(ua)) return { label: '💻 ماك (Mac)', os: 'mac' };
+  return { label: '❔ غير معروف', os: 'unknown' };
 }
 async function loadAppInstalls() {
   const list = document.getElementById('appInstallsList');
@@ -6099,9 +6110,11 @@ async function loadAppInstalls() {
     const roleLabels = { customer:'👤 زبون', student:'🎓 طالب', teacher:'🧑‍🏫 أستاذ', promoter:'🎯 مروّج', unknown:'❔ غير معروف' };
     list.innerHTML = snap.docs.map(d => {
       const p = d.data();
+      const device = deviceInfoFromUserAgent(p.userAgent);
       return `<div class="card" style="cursor:pointer;" onclick="${p.phone ? `openCustomerProfile('${p.phone}')` : ''}">
         <p style="font-weight:bold;margin:0;">📲 ${p.name || p.phone || 'مجهول'} <span style="color:#8a90a3;font-weight:normal;font-size:12px;">${roleLabels[p.role]||roleLabels.unknown}</span></p>
         <p style="margin:4px 0 0;color:#8a90a3;">${p.phone ? '📞 '+p.phone : ''} ${p.province ? '— 📍 '+p.province : ''}</p>
+        <p style="margin:4px 0 0;color:#10203f;font-size:12px;font-weight:600;">${device.label}</p>
         <p style="margin:4px 0 0;color:#8a90a3;font-size:12px;">🗓️ ${new Date(p.installedAt).toLocaleString('ar-EG',{dateStyle:'medium',timeStyle:'short'})}</p>
       </div>`;
     }).join('');
@@ -9891,7 +9904,7 @@ function updatePresenceHeartbeat() {
     if (currentStudent) { phone = currentStudent.phone; name = currentStudent.name; province = currentStudent.province; role = 'student'; }
     if (currentTeacher) { phone = currentTeacher.phone; name = currentTeacher.name; role = 'teacher'; }
     if (!phone) return; // ما عندنا هوية معروفة بعد (زائر ما سجّل رقمه)
-    db.collection('presence').doc(phone).set({ phone, name, province, role, lastActiveAt: Date.now() }, { merge: true }).catch(e => console.error(e));
+    db.collection('presence').doc(phone).set({ phone, name, province, role, lastActiveAt: Date.now(), userAgent: navigator.userAgent }, { merge: true }).catch(e => console.error(e));
   } catch(e) { console.error(e); }
 }
 setInterval(() => { if (document.visibilityState === 'visible') updatePresenceHeartbeat(); }, 60000);

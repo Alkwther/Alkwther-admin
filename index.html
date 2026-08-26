@@ -6104,11 +6104,22 @@ async function loadAppInstalls() {
   const list = document.getElementById('appInstallsList');
   list.innerHTML = '<p>جاري التحميل...</p>';
   try {
-    const snap = await db.collection('appInstalls').orderBy('installedAt','desc').limit(200).get();
-    document.getElementById('installsCount').textContent = snap.size;
+    // العدد الإجمالي الحقيقي لكل التثبيتات المسجّلة منذ إطلاق البرنامج (بدون حد أقصى) —
+    // منفصل عن قائمة العرض حتى يبقى دقيق حتى لو تجاوز عدد التثبيتات 200
+    try {
+      const countSnap = await db.collection('appInstalls').count().get();
+      document.getElementById('installsCount').textContent = countSnap.data().count;
+    } catch(countErr) {
+      // لو الإصدار القديم من Firestore ما يدعم count()، نكتفي بعدد القائمة المعروضة كحل بديل
+      console.error('count() failed, falling back', countErr);
+    }
+    const snap = await db.collection('appInstalls').orderBy('installedAt','desc').limit(500).get();
+    if (!document.getElementById('installsCount').textContent || document.getElementById('installsCount').textContent === '0') {
+      document.getElementById('installsCount').textContent = snap.size;
+    }
     if (snap.empty) { list.innerHTML = '<div class="card"><p>ما فيه تثبيتات مسجّلة بعد.</p></div>'; return; }
     const roleLabels = { customer:'👤 زبون', student:'🎓 طالب', teacher:'🧑‍🏫 أستاذ', promoter:'🎯 مروّج', unknown:'❔ غير معروف' };
-    list.innerHTML = snap.docs.map(d => {
+    list.innerHTML = (snap.size >= 500 ? '<div class="card" style="background:#fff3e0;"><p style="margin:0;color:#7a4d00;">⚠️ يعرض هنا آخر 500 تثبيت فقط (الأحدث)، مع إن الإجمالي الحقيقي بالأعلى صحيح بالكامل.</p></div>' : '') + snap.docs.map(d => {
       const p = d.data();
       const device = deviceInfoFromUserAgent(p.userAgent);
       return `<div class="card" style="cursor:pointer;" onclick="${p.phone ? `openCustomerProfile('${p.phone}')` : ''}">

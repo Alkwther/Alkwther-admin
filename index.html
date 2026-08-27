@@ -3,20 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>مكتبة الكوثر - لوحة التحكم</title>
+<title>مكتبة الكوثر</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#10203f">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="لوحة تحكم الكوثر">
+<meta name="apple-mobile-web-app-title" content="مكتبة الكوثر">
 <link rel="icon" href="icon-192.png">
-<meta property="og:title" content="لوحة تحكم مكتبة الكوثر">
-<meta property="og:description" content="لوحة تحكم المشرف والموظفين — إدارة الطلبات والملازم والكتب والزبائن">
+<meta property="og:title" content="مكتبة الكوثر">
+<meta property="og:description" content="مكتبة تعليمية للكتب والملازم والدفاتر، مطبعة لطباعة الكتب والملازم، ومنصة تعليمية للطلاب">
+<meta property="og:image" content="https://alkwther.github.io/Manast-Alkwther/icon-512.png">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="لوحة تحكم مكتبة الكوثر">
-<meta name="twitter:description" content="لوحة تحكم المشرف والموظفين — إدارة الطلبات والملازم والكتب والزبائن">
+<meta name="twitter:title" content="مكتبة الكوثر">
+<meta name="twitter:description" content="مكتبة تعليمية للكتب والملازم والدفاتر، مطبعة لطباعة الكتب والملازم، ومنصة تعليمية للطلاب">
+<meta name="twitter:image" content="https://alkwther.github.io/Manast-Alkwther/icon-512.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
@@ -734,8 +736,6 @@ main{max-width:560px;margin:0 auto;padding:20px 14px 100px;}#screen-textbooks /*
 <body>
 <div id="app">
 
-
-
   <!-- بانر هروب من متصفح انستقرام/فيسبوك/تيك توك الداخلي — يظهر تلقائياً بس لو انفتحنا من داخل هالتطبيقات على أندرويد -->
   <div id="inAppBrowserEscapeBanner" class="hidden" style="position:sticky;top:0;z-index:9999;background:#fff3e0;border-bottom:2px solid #f0b429;padding:10px 14px;font-size:13px;text-align:center;color:#7a4d00;">
     📌 لأفضل تجربة، افتح الصفحة بمتصفحك مباشرة
@@ -753,10 +753,7 @@ main{max-width:560px;margin:0 auto;padding:20px 14px 100px;}#screen-textbooks /*
       <button class="icon-btn" onclick="shareThePlatform()" title="شارك البرنامج">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#f0dfae" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5l6.8-3.9M8.6 13.5l6.8 3.9"/></svg>
       </button>
-      <button class="icon-btn" id="settingsBtn" title="دخول المشرف / الموظف" style="display:none;">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#f0dfae" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1 1.55V21a2 2 0 01-4 0v-.09A1.7 1.7 0 009 19.4a1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.7 1.7 0 004.6 15a1.7 1.7 0 00-1.55-1H3a2 2 0 010-4h.09A1.7 1.7 0 004.6 9a1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06A1.7 1.7 0 009 4.6a1.7 1.7 0 001-1.55V3a2 2 0 014 0v.09A1.7 1.7 0 0015.4 4.6a1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06A1.7 1.7 0 0019.4 9a1.7 1.7 0 001.55 1H21a2 2 0 010 4h-.09a1.7 1.7 0 00-1.51 1z"/></svg>
-      </button>
-      <button class="icon-btn" id="logoutBtn" title="خروج" style="display:none;">
+      <button class="icon-btn" id="logoutBtn" title="خروج">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#f0dfae" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/><path d="M13 5a2 2 0 00-2-2H6a2 2 0 00-2 2v14a2 2 0 002 2h5a2 2 0 002-2"/></svg>
       </button>
     </div>
@@ -1123,6 +1120,9 @@ main{max-width:560px;margin:0 auto;padding:20px 14px 100px;}#screen-textbooks /*
     <p class="upload-hint">يمكن إضافة أكثر من صورة دفعة واحدة. تُضغط الصور تلقائياً لتناسب المساحة المتاحة وتبقى واضحة على الجوال.</p>
   </div>
 </div>
+
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 
 
   </div>
@@ -2856,15 +2856,6 @@ const OWNER_AUTH_EMAIL = "owner@kawthar-admin.app";
 const STAFF_AUTH_DOMAIN = "kawthar-staff.app";
 const TEACHER_AUTH_DOMAIN = "kawthar-teachers.app";
 function staffEmailFromUsername(username) { return `${username}@${STAFF_AUTH_DOMAIN}`; }
-// بحث عن الموظف بدون حساسية لحالة الأحرف (كبير/صغير) — لازم لأن Firebase يحوّل البريد الإلكتروني
-// (وبالتالي اسم المستخدم المستخرج منه عند استرجاع الجلسة) دائماً لحروف صغيرة، بينما اسم المستخدم
-// المخزّن بقاعدة البيانات ممكن يكون بالحالة الأصلية اللي كتبها المشرف عند إضافة الموظف.
-async function findStaffByUsernameCI(username) {
-  const target = (username || '').toLowerCase();
-  const snap = await db.collection('staff').get();
-  const match = snap.docs.find(d => (d.data().username || '').toLowerCase() === target);
-  return match ? { id: match.id, data: match.data() } : null;
-}
 function teacherEmailFromPhone(phone) { return `${phone}@${TEACHER_AUTH_DOMAIN}`; }
 // تطبيق Firebase ثانوي: يُستخدم فقط عند إنشاء حساب موظف جديد من طرف المالك،
 // حتى ما ينسحب المالك من جلسته الحالية (Firebase يسجّل دخول تلقائي لأي حساب تنشئه)
@@ -2908,7 +2899,6 @@ async function registerFcmToken(identityType, identityId) {
 }
 
 let db, auth, currentStudent = null;
-function dbg() {} // لوحة التشخيص أُزيلت — هذي دالة فارغة فقط حتى ما تنكسر بقية الأسطر اللي تناديها
 const GRADES = ["الأول ابتدائي","الثاني ابتدائي","الثالث ابتدائي","الرابع ابتدائي","الخامس ابتدائي","السادس ابتدائي","الأول متوسط","الثاني متوسط","الثالث متوسط","الرابع علمي","الرابع أدبي","الخامس علمي","الخامس أدبي","السادس علمي","السادس أدبي","الرابع الصناعي","الخامس الصناعي","السادس الصناعي","الرابع التجاري","الخامس التجاري","السادس التجاري","الرابع الزراعي","الخامس الزراعي","السادس الزراعي"];
 const STUDENT_AUTH_DOMAIN = "kawthar-students.app"; // نطاق وهمي لتحويل رقم الهاتف لبريد إلكتروني يقبله Firebase Auth
 function studentEmailFromPhone(phone) { return `${phone}@${STUDENT_AUTH_DOMAIN}`; }
@@ -2917,12 +2907,7 @@ try {
   firebase.initializeApp(firebaseConfig);
   db = firebase.firestore();
   auth = firebase.auth();
-  // ملاحظة: أزلنا استدعاء setPersistence لأنه كان المصدر الحقيقي لمشكلة "تسجيل الدخول ما يبقى محفوظ".
-  // السبب: هذا الاستدعاء يعيد تهيئة نظام حفظ الجلسة بعد ما يكون Firebase قد بدأ فعلاً
-  // بقراءة الجلسة المحفوظة من الجهاز (بالخلفية) — يعني يحصل تعارض توقيت (race condition):
-  // يوصل أحياناً "ما فيه مستخدم محفوظ" رغم وجود جلسة فعلية، فيسجّل البرنامج دخول "زائر مجهول"
-  // تلقائياً (auth.signInAnonymously) ويمسح الجلسة الحقيقية القديمة نهائياً بهذي اللحظة.
-  // أصلاً وضع "LOCAL" هو الوضع الافتراضي لمتصفحات الويب بدون أي استدعاء إضافي، فحذفه آمن 100%.
+  auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(e => console.error('persistence error', e));
   // تخزين محلي دائم لقاعدة البيانات: أي بيانات وصلت مرة (صفوف، مواد، ملازم...) تضل محفوظة بالجهاز
   // وتُعرض فوراً حتى بدون نت، وأي طلب يُرسل وقت انقطاع النت ينحفظ محلياً ويوصل تلقائياً أول ما يرجع الاتصال
   db.enablePersistence({ synchronizeTabs: true }).catch(e => {
@@ -3419,22 +3404,6 @@ document.getElementById('showFreeLessonsBtn').onclick = async () => {
   }
   show('screen-free-lessons');
 };
-
-async function enterAdminArea() {
-  show('screen-admin'); // نفتح الشاشة فوراً حتى ما يحس المستخدم بأي تأخير
-  if (!initialAuthCheckDone) {
-    document.getElementById('adminLoginCard').classList.add('hidden');
-    document.getElementById('adminPanel').classList.add('hidden');
-    await initialAuthCheckPromise; // ننتظر بصمت لين يخلص فحص الجلسة المحفوظة (يأخذ أجزاء من الثانية عادةً)
-  }
-  if (currentStaffRole) {
-    enterAdminPanel(); // مسجّل دخول أصلاً — يدخل مباشرة بدون طلب اسم مستخدم/كلمة سر من جديد
-  } else {
-    document.getElementById('adminPanel').classList.add('hidden');
-    document.getElementById('adminLoginCard').classList.remove('hidden');
-  }
-}
-document.getElementById('settingsBtn').onclick = enterAdminArea;
 
 
 // ---------- الاختبار ----------
@@ -4125,17 +4094,15 @@ document.getElementById('adminLoginBtn').onclick = async () => {
   // دخول موظف
   try {
     await auth.signInWithEmailAndPassword(staffEmailFromUsername(nameInput), pass);
-    dbg('LOGIN: signInWithEmailAndPassword ok for ' + staffEmailFromUsername(nameInput) + ', auth.currentUser=' + (auth.currentUser ? auth.currentUser.email : 'null'));
-    const found = await findStaffByUsernameCI(nameInput);
-    if (!found) { setMsg('adminMsg','حسابك موجود لكن بياناتك ناقصة، تواصل مع الإدارة', false); return; }
-    const staff = found.data;
+    const q = await db.collection('staff').where('username','==',nameInput).limit(1).get();
+    if (q.empty) { setMsg('adminMsg','حسابك موجود لكن بياناتك ناقصة، تواصل مع الإدارة', false); return; }
+    const staff = q.docs[0].data();
     currentStaffName = staff.name;
     currentStaffRole = 'employee';
     currentStaffPermissions = staff.permissions || {};
     enterAdminPanel();
   } catch(e) {
     console.error(e);
-    dbg('LOGIN ERROR: ' + e.code + ' | ' + e.message);
     if (e.code === 'auth/user-not-found') setMsg('adminMsg','اسم المستخدم غير موجود', false);
     else if (e.code === 'auth/wrong-password') setMsg('adminMsg','كلمة السر غير صحيحة', false);
     else setMsg('adminMsg','خطأ بالاتصال', false);
@@ -4164,42 +4131,6 @@ function setupNewOrdersBadgeWatcher() {
   }, e => console.error('setupNewOrdersBadgeWatcher failed', e));
 }
 
-// مراقب تثبيتات جديدة للبرنامج — يشتغل بس وقت ما لوحة التحكم مفتوحة أمامك (ليس إشعار push حقيقي وقت البرنامج مغلق تماماً)
-// يشغّل نغمة تنبيه ويطلع إشعار متصفح لحظي، ويحدّث الرقم بالأعلى فوراً بدون ما تحتاج تحدّث الصفحة يدوياً
-let newInstallsWatcherStarted = false;
-function setupNewInstallsWatcher() {
-  if (newInstallsWatcherStarted) return;
-  newInstallsWatcherStarted = true;
-  if (window.Notification && Notification.permission === 'default') {
-    Notification.requestPermission().catch(()=>{});
-  }
-  let firstSnap = true;
-  db.collection('appInstalls').orderBy('installedAt','desc').limit(50).onSnapshot(snap => {
-    if (!firstSnap) {
-      snap.docChanges().forEach(ch => {
-        if (ch.type !== 'added') return;
-        const p = ch.doc.data();
-        const device = deviceInfoFromUserAgent(p.userAgent);
-        if (isNotificationSoundEnabled()) playNotificationBeep();
-        if (window.Notification && Notification.permission === 'granted') {
-          try {
-            new Notification('📲 تثبيت جديد للبرنامج', {
-              body: `${p.name || p.phone || 'مستخدم مجهول'} — ${device.label}`,
-              icon: 'icon-192.png'
-            });
-          } catch(e) { console.error(e); }
-        }
-      });
-      // نحدّث الرقم الإجمالي فوراً بدون انتظار فتح تبويب "ثبّتوا البرنامج" يدوياً
-      db.collection('appInstalls').count().get().then(c => {
-        const el = document.getElementById('installsCount');
-        if (el) el.textContent = c.data().count;
-      }).catch(()=>{});
-    }
-    firstSnap = false;
-  }, e => console.error('setupNewInstallsWatcher failed', e));
-}
-
 function enterAdminPanel() {
   document.getElementById('adminLoginCard').classList.add('hidden');
   document.getElementById('adminUser').value = '';
@@ -4210,7 +4141,6 @@ function enterAdminPanel() {
   document.getElementById('adminMenu').classList.remove('hidden');
   setupAdminNotifications();
   setupNewOrdersBadgeWatcher();
-  setupNewInstallsWatcher();
   refreshBellBadge();
   registerFcmToken('staff', currentStaffRole === 'admin' ? 'owner' : currentStaffName);
 
@@ -6120,49 +6050,25 @@ async function loadOnlineNow() {
           <div>
             <p style="font-weight:bold;margin:0;">🟢 ${p.name || p.phone || 'مجهول'} <span style="color:#8a90a3;font-weight:normal;font-size:12px;">${roleLabels[p.role]||''}</span></p>
             <p style="margin:4px 0 0;color:#8a90a3;">${p.phone ? '📞 '+p.phone : ''} ${p.province ? '— 📍 '+p.province : ''}</p>
-            <p style="margin:4px 0 0;color:#10203f;font-size:12px;font-weight:600;">${deviceInfoFromUserAgent(p.userAgent).label}</p>
             <p style="margin:4px 0 0;color:#8a90a3;font-size:12px;">آخر نشاط: ${new Date(p.lastActiveAt).toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'})}</p>
           </div>
         </div>
       </div>`).join('');
   } catch(e) { console.error(e); list.innerHTML = '<p style="color:#b91c1c;">تعذّر التحميل.</p>'; }
 }
-// يستنتج نوع الجهاز ونظام التشغيل من نص الـ userAgent المحفوظ وقت التثبيت
-function deviceInfoFromUserAgent(ua) {
-  if (!ua) return { label: '❔ غير معروف', os: 'unknown' };
-  if (/iPhone/i.test(ua)) return { label: '📱 آيفون (iPhone)', os: 'ios' };
-  if (/iPad/i.test(ua)) return { label: '📱 آيباد (iPad)', os: 'ios' };
-  if (/Android/i.test(ua)) return { label: '🤖 أندرويد (Android)', os: 'android' };
-  if (/Windows/i.test(ua)) return { label: '💻 ويندوز (Windows)', os: 'windows' };
-  if (/Macintosh|Mac OS/i.test(ua)) return { label: '💻 ماك (Mac)', os: 'mac' };
-  return { label: '❔ غير معروف', os: 'unknown' };
-}
 async function loadAppInstalls() {
   const list = document.getElementById('appInstallsList');
   list.innerHTML = '<p>جاري التحميل...</p>';
   try {
-    // العدد الإجمالي الحقيقي لكل التثبيتات المسجّلة منذ إطلاق البرنامج (بدون حد أقصى) —
-    // منفصل عن قائمة العرض حتى يبقى دقيق حتى لو تجاوز عدد التثبيتات 200
-    try {
-      const countSnap = await db.collection('appInstalls').count().get();
-      document.getElementById('installsCount').textContent = countSnap.data().count;
-    } catch(countErr) {
-      // لو الإصدار القديم من Firestore ما يدعم count()، نكتفي بعدد القائمة المعروضة كحل بديل
-      console.error('count() failed, falling back', countErr);
-    }
-    const snap = await db.collection('appInstalls').orderBy('installedAt','desc').limit(500).get();
-    if (!document.getElementById('installsCount').textContent || document.getElementById('installsCount').textContent === '0') {
-      document.getElementById('installsCount').textContent = snap.size;
-    }
+    const snap = await db.collection('appInstalls').orderBy('installedAt','desc').limit(200).get();
+    document.getElementById('installsCount').textContent = snap.size;
     if (snap.empty) { list.innerHTML = '<div class="card"><p>ما فيه تثبيتات مسجّلة بعد.</p></div>'; return; }
     const roleLabels = { customer:'👤 زبون', student:'🎓 طالب', teacher:'🧑‍🏫 أستاذ', promoter:'🎯 مروّج', unknown:'❔ غير معروف' };
-    list.innerHTML = (snap.size >= 500 ? '<div class="card" style="background:#fff3e0;"><p style="margin:0;color:#7a4d00;">⚠️ يعرض هنا آخر 500 تثبيت فقط (الأحدث)، مع إن الإجمالي الحقيقي بالأعلى صحيح بالكامل.</p></div>' : '') + snap.docs.map(d => {
+    list.innerHTML = snap.docs.map(d => {
       const p = d.data();
-      const device = deviceInfoFromUserAgent(p.userAgent);
       return `<div class="card" style="cursor:pointer;" onclick="${p.phone ? `openCustomerProfile('${p.phone}')` : ''}">
         <p style="font-weight:bold;margin:0;">📲 ${p.name || p.phone || 'مجهول'} <span style="color:#8a90a3;font-weight:normal;font-size:12px;">${roleLabels[p.role]||roleLabels.unknown}</span></p>
         <p style="margin:4px 0 0;color:#8a90a3;">${p.phone ? '📞 '+p.phone : ''} ${p.province ? '— 📍 '+p.province : ''}</p>
-        <p style="margin:4px 0 0;color:#10203f;font-size:12px;font-weight:600;">${device.label}</p>
         <p style="margin:4px 0 0;color:#8a90a3;font-size:12px;">🗓️ ${new Date(p.installedAt).toLocaleString('ar-EG',{dateStyle:'medium',timeStyle:'short'})}</p>
       </div>`;
     }).join('');
@@ -8729,16 +8635,27 @@ document.getElementById('customerNotifSoundToggleBtn').onclick = () => setCustom
 
 let currentChatThread = null; // { threadId, myRole, myId, myName }
 
+// هوية مجهولة دائمة لكل جهاز — تُنشأ مرة وحدة وتبقى محفوظة، تضمن إن كل زائر يشوف بس محادثته الخاصة
+// حتى لو ما سجّل رقمه أو دخل كطالب/أستاذ إطلاقاً (بدل الاعتماد بس على رقم الهاتف المحفوظ)
+function getOrCreateAnonId() {
+  let id = localStorage.getItem('kawthar_anon_id');
+  if (!id) {
+    id = 'anon_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+    localStorage.setItem('kawthar_anon_id', id);
+  }
+  return id;
+}
 function currentIdentity() {
   if (currentStudent) return { role: 'student', id: currentStudent.phone, name: currentStudent.name };
   if (currentTeacher) return { role: 'teacher', id: currentTeacher.phone, name: currentTeacher.name };
   if (currentStaffRole) return { role: 'staff', id: currentStaffName, name: currentStaffName };
-  // زبون خارجي (ما سجّل كطالب أو أستاذ) — نستخدم بياناته المحفوظة من أول طلب سواه
+  // زبون خارجي (ما سجّل كطالب أو أستاذ) — نستخدم بياناته المحفوظة من أول طلب سواه إن وجدت
   try {
     const saved = JSON.parse(localStorage.getItem('kawthar_delivery_info') || 'null');
     if (saved && saved.phone) return { role: 'customer', id: saved.phone, name: saved.name || saved.phone };
   } catch(e) { console.error(e); }
-  return null;
+  // ما عنده رقم محفوظ بعد — نعطيه هوية مجهولة خاصة فيه بس، تضمن عزل محادثته عن أي زائر ثاني
+  return { role: 'customer', id: getOrCreateAnonId(), name: 'زائر' };
 }
 
 let currentChatUnsubscribe = null;
@@ -8931,14 +8848,7 @@ document.getElementById('chatSendBtn').onclick = async () => {
 // مراسلة الزبون لمكتبة الكوثر (أيقونة 💬 بجانب اسم البرنامج) — متاحة لأي زائر حتى لو ما طلب من قبل
 function openLibraryCustomerChat() {
   if (currentStaffRole) { openStaffMessagesInbox(); return; } // المشرف/الموظف يشوف كل المحادثات، مو محادثة نفسه
-  let me = currentIdentity();
-  if (!me) {
-    const phone = prompt('أدخل رقم هاتفك للتواصل مع المكتبة:');
-    if (!phone || !phone.trim()) return;
-    const name = prompt('أدخل اسمك:');
-    saveDeliveryInfo({ name: (name||phone).trim(), phone: phone.trim(), province:'', district:'', landmark:'', altPhone:'' });
-    me = currentIdentity();
-  }
+  const me = currentIdentity(); // ما ترجع null أبداً الحين — أي زائر يحصل على هوية خاصة فيه تلقائياً
   openChat(`libcustomer_${me.id}`, '💬 مراسلة مكتبة الكوثر');
   setupLibraryCustomerChatBadge(me.id);
 }
@@ -9952,7 +9862,7 @@ function updatePresenceHeartbeat() {
     if (currentStudent) { phone = currentStudent.phone; name = currentStudent.name; province = currentStudent.province; role = 'student'; }
     if (currentTeacher) { phone = currentTeacher.phone; name = currentTeacher.name; role = 'teacher'; }
     if (!phone) return; // ما عندنا هوية معروفة بعد (زائر ما سجّل رقمه)
-    db.collection('presence').doc(phone).set({ phone, name, province, role, lastActiveAt: Date.now(), userAgent: navigator.userAgent }, { merge: true }).catch(e => console.error(e));
+    db.collection('presence').doc(phone).set({ phone, name, province, role, lastActiveAt: Date.now() }, { merge: true }).catch(e => console.error(e));
   } catch(e) { console.error(e); }
 }
 setInterval(() => { if (document.visibilityState === 'visible') updatePresenceHeartbeat(); }, 60000);
@@ -9990,11 +9900,10 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
     } catch(e) {}
   })();
   auth.onAuthStateChanged(async (user) => {
-    dbg('onAuthStateChanged fired. user=' + (user ? (user.email || ('no-email uid:'+user.uid)) : 'null'));
     if (!user) {
-      // لوحة التحكم (نسخة المشرف/الموظف) ما تحتاج دخول "زائر مجهول" إطلاقاً — إذا ما فيه جلسة محفوظة
-      // نوقف هنا فقط ونعرض نموذج تسجيل الدخول. (حذفنا استدعاء signInAnonymously من هذي النسخة
-      // لأنه كان يشكّل خطر يمسح جلسة المشرف المحفوظة بأي سباق توقيت مستقبلي).
+      // زائر يتصفح المكتبة أو الدروس المجانية بدون تسجيل: نسجّله دخول مجهول
+      // حتى تشتغل معه قواعد الأمان (تتطلب مصادقة لأي كتابة)
+      auth.signInAnonymously().catch(e => console.error('anon auth failed', e));
       markInitialAuthCheckDone();
       return;
 
@@ -10025,7 +9934,6 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
     // استرجاع جلسة المشرف الرئيسي (المالك)
     if (!currentStaffRole && user.email === OWNER_AUTH_EMAIL) {
-      dbg('restoring OWNER session...');
       currentStaffName = 'المشرف'; currentStaffRole = 'admin'; currentStaffPermissions = {};
       show('screen-admin');
       enterAdminPanel();
@@ -10034,19 +9942,17 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
     // استرجاع جلسة الموظف
     if (!currentStaffRole && user.email && user.email.endsWith('@'+STAFF_AUTH_DOMAIN)) {
-      dbg('restoring EMPLOYEE session, querying staff collection...');
       const username = user.email.split('@')[0];
       try {
-        const found = await findStaffByUsernameCI(username);
-        dbg('staff query result: found=' + !!found);
-        if (found) {
-          const staff = found.data;
+        const q = await db.collection('staff').where('username','==',username).limit(1).get();
+        if (!q.empty) {
+          const staff = q.docs[0].data();
           currentStaffName = staff.name; currentStaffRole = 'employee'; currentStaffPermissions = staff.permissions || {};
           show('screen-admin');
           enterAdminPanel();
           return;
         }
-      } catch(e) { console.error(e); dbg('staff query ERROR: ' + e.code + ' | ' + e.message); }
+      } catch(e) { console.error(e); }
     }
 
     // استرجاع جلسة الأستاذ
@@ -10076,17 +9982,26 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
         }
       } catch(e) { console.error(e); }
     }
-    } catch(e) { dbg('OUTER auth-restore ERROR: ' + e.message); }
-    finally {
-      dbg('auth restore finished. currentStaffRole=' + currentStaffRole);
+    } finally {
       markInitialAuthCheckDone(); // يخلي زر "دخول المشرف/الموظف" يعرف متى تنتهي محاولة استرجاع الجلسة المحفوظة
     }
   });
   loadAnnouncements();
   initialAuthCheckPromise.then(() => updatePresenceHeartbeat()); // نسجّل "متصل الآن" أول ما تتضح هوية المستخدم (لو معروفة)
-  // ---- نسخة المشرف/الموظف: تفتح مباشرة على شاشة الإدارة، ما تمر أبداً على الصفحة الرئيسية للزبون ----
   if (!routeFromHash()) {
-    enterAdminArea();
+    show('screen-welcome');
+    // إذا كان عندنا رقم هاتف زبون محفوظ محلياً (سبق فتح "طلباتي" من رابط أو بالكتابة اليدوية)،
+    // نوديه مباشرة لطلباته بدل الصفحة الرئيسية — بس لو ما صار أي تسجيل دخول رسمي (موظف/طالب/أستاذ) بالأثناء
+    initialAuthCheckPromise.then(() => {
+      if (currentStudent || currentStaffRole || currentTeacher) return; // فيه جلسة رسمية أهم، ما نتدخل
+      if (!document.getElementById('screen-welcome').classList.contains('hidden')) {
+        // لسا واقفين بالصفحة الرئيسية (ما تحرك المستخدم لمكان ثاني بالأثناء)
+        try {
+          const saved = JSON.parse(localStorage.getItem('kawthar_delivery_info') || 'null');
+          if (saved && saved.phone) showMyOrders(saved.phone);
+        } catch(e) { console.error(e); }
+      }
+    });
   }
 })();
 

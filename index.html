@@ -4039,7 +4039,9 @@ function fullLogout() {
   document.getElementById('adminUser').value = '';
   document.getElementById('adminPass').value = '';
   document.getElementById('bottomNav').classList.add('hidden');
-  show('screen-welcome');
+  // هذي نسخة المشرف/الموظف فقط (لوحة التحكم) — بعد الخروج يرجع لشاشة تسجيل دخول
+  // المشرف/الموظف نفسها، مو لصفحة الزبون العادي (مكتبة/مطبعة/منصة تعليمية)
+  show('screen-admin');
 }
 document.getElementById('logoutBtn').onclick = fullLogout;
 document.getElementById('printShopLogoutBtn').onclick = fullLogout;
@@ -4210,7 +4212,7 @@ function enterAdminPanel() {
   document.getElementById('adminMenu').classList.remove('hidden');
   setupAdminNotifications();
   setupNewOrdersBadgeWatcher();
-  setupNewInstallsWatcher();
+  if (currentStaffRole === 'admin') setupNewInstallsWatcher(); // إشعارات "تثبيت جديد للبرنامج" تخص المشرف الرئيسي فقط، ما توصل للموظفين
   refreshBellBadge();
   registerFcmToken('staff', currentStaffRole === 'admin' ? 'owner' : currentStaffName);
 
@@ -8957,7 +8959,7 @@ async function openStaffMessagesInbox() {
       const m = d.data();
       const phone = (m.threadId||'').slice('libcustomer_'.length);
       if (!phone) return;
-      if (!byPhone[phone]) byPhone[phone] = { phone, lastText:'', lastAt:0, lastFromRole:null, lastFromName:'', customerName: phone };
+      if (!byPhone[phone]) byPhone[phone] = { phone, lastText:'', lastAt:0, lastFromRole:null, lastFromName:'', customerName: phone, hasUnread:false };
       const row = byPhone[phone];
       if ((m.createdAt||0) > row.lastAt) {
         row.lastText = m.text || (m.image ? '📷 صورة' : '');
@@ -8970,6 +8972,8 @@ async function openStaffMessagesInbox() {
         row.customerName = m.fromName;
         row.customerNameAt = m.createdAt||0;
       }
+      // هذي المحادثة فيها رسالة غير مقروءة من الزبون (نظهر علامة "غير مقروءة" جنب اسمه بالقائمة)
+      if (m.fromRole !== 'staff' && m.readByStaff === false) row.hasUnread = true;
     });
     const rows = Object.values(byPhone).sort((a,b) => b.lastAt - a.lastAt);
     if (rows.length === 0) { list.innerHTML = '<div class="card"><p>ما فيه محادثات بعد.</p></div>'; return; }
@@ -8986,10 +8990,10 @@ async function openStaffMessagesInbox() {
     }
 
     list.innerHTML = rows.map(r => `
-      <div class="card" style="cursor:pointer;" onclick="openChat('libcustomer_${r.phone}','💬 مراسلة ${(r.customerName||r.phone).replace(/'/g,"")}')">
+      <div class="card" style="cursor:pointer;${r.hasUnread ? 'border-right:4px solid #dc2626;' : ''}" onclick="openChat('libcustomer_${r.phone}','💬 مراسلة ${(r.customerName||r.phone).replace(/'/g,"")}')">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <div>
-            <p style="font-weight:bold;margin:0;">👤 ${r.customerName || r.phone}</p>
+            <p style="font-weight:bold;margin:0;">👤 ${r.customerName || r.phone} ${r.hasUnread ? '<span style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:bold;margin-right:6px;">غير مقروءة</span>' : ''}</p>
             <p style="margin:4px 0 0;color:#8a90a3;font-size:13px;">${r.lastFromRole === 'staff' ? `بواسطة ${r.lastFromName}: ` : ''}${r.lastText}</p>
           </div>
           <button class="small-btn" onclick="event.stopPropagation(); openCustomerProfile('${r.phone}')">📦 طلباته</button>
@@ -10370,12 +10374,15 @@ function setupAdminNotifications() {
     let firstMessagesSnapshot = true;
     db.collection('messages').where('readByStaff','==', false).onSnapshot(snap => {
       // شارة أيقونة 💬 (محادثات الزبائن العامة) — تتحدّث كل مرة بما فيها أول تحميل للصفحة،
-      // حتى تكون صحيحة فوراً بدون انتظار رسالة جديدة
-      const libCustomerUnread = snap.docs.filter(d => {
-        const m = d.data();
-        return (m.threadId||'').startsWith('libcustomer_') && m.fromRole !== 'staff';
-      }).length;
-      updateLibraryCustomerChatBadge(libCustomerUnread);
+      // حتى تكون صحيحة فوراً بدون انتظار رسالة جديدة.
+      // العدد هنا هو عدد "المحادثات" (زبائن) اللي فيها رسالة غير مقروءة، مو عدد الرسائل نفسها —
+      // لو نفس الزبون أرسل 3 رسائل ما زالت غير مقروءة، تُحسب محادثة واحدة بس
+      const libCustomerUnreadThreads = new Set(
+        snap.docs
+          .filter(d => { const m = d.data(); return (m.threadId||'').startsWith('libcustomer_') && m.fromRole !== 'staff'; })
+          .map(d => d.data().threadId)
+      );
+      updateLibraryCustomerChatBadge(libCustomerUnreadThreads.size);
 
       if (firstMessagesSnapshot) { firstMessagesSnapshot = false; return; }
       let hasNewOrderMsg = false;

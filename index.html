@@ -750,6 +750,10 @@ main{max-width:560px;margin:0 auto;padding:20px 14px 100px;}#screen-textbooks /*
       </button>
     </div>
     <div style="display:flex;gap:14px;align-items:center;">
+      <button class="icon-btn" id="topOrdersBtn" onclick="show('screen-admin'); openAdminSection('library-hub'); openAdminSection('library-orders');" title="طلبات المكتبة" style="position:relative;display:none;">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#f0dfae" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
+        <span id="topOrdersBadge" class="hidden" style="position:absolute;top:-4px;left:-6px;background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;font-weight:bold;">0</span>
+      </button>
       <button class="icon-btn" onclick="shareThePlatform()" title="شارك البرنامج">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#f0dfae" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5l6.8-3.9M8.6 13.5l6.8 3.9"/></svg>
       </button>
@@ -4039,6 +4043,7 @@ function fullLogout() {
   document.getElementById('adminUser').value = '';
   document.getElementById('adminPass').value = '';
   document.getElementById('bottomNav').classList.add('hidden');
+  document.getElementById('topOrdersBtn').style.display = 'none';
   // هذي نسخة المشرف/الموظف فقط (لوحة التحكم) — بعد الخروج يرجع لشاشة تسجيل دخول
   // المشرف/الموظف نفسها، مو لصفحة الزبون العادي (مكتبة/مطبعة/منصة تعليمية)
   show('screen-admin');
@@ -4152,7 +4157,7 @@ function setupNewOrdersBadgeWatcher() {
   let firstSnap = true;
   db.collection('orders').where('status','==','pending').onSnapshot(snap => {
     const count = snap.docs.filter(d => d.data().fulfillment !== 'teacher').length;
-    ['ordersUnreadBadge','ordersUnreadBadge2'].forEach(bid => {
+    ['ordersUnreadBadge','ordersUnreadBadge2','topOrdersBadge'].forEach(bid => {
       const badge = document.getElementById(bid);
       if (!badge) return;
       if (count > 0) { badge.textContent = count; badge.classList.remove('hidden'); }
@@ -4219,6 +4224,7 @@ function enterAdminPanel() {
   if (currentStaffRole === 'admin') {
     document.querySelectorAll('.admin-only').forEach(el => el.classList.remove('hidden'));
     populateGradeSelects(GRADES);
+    document.getElementById('topOrdersBtn').style.display = '';
   } else {
     // إظهار عناصر القائمة المسموحة فقط حسب صلاحيات الموظف (5 فئات فقط: المنصة التعليمية، المكتبة، الموظفين، خدمة العملاء، الإعلانات)
     document.querySelectorAll('.admin-only').forEach(el => el.classList.add('hidden'));
@@ -4228,6 +4234,8 @@ function enterAdminPanel() {
       const allowed = !!perms[key];
       item.classList.toggle('hidden', !allowed);
     });
+    // أيقونة طلبات المكتبة بالأعلى تظهر فقط للموظف اللي عنده صلاحية "المكتبة"
+    document.getElementById('topOrdersBtn').style.display = perms.library ? '' : 'none';
     // كل الصفوف متاحة لأي موظف عنده صلاحية "المنصة التعليمية" (ما عاد التقييد حسب مرحلة معينة)
     populateGradeSelects(GRADES);
   }
@@ -5892,7 +5900,7 @@ function renderOrdersFromCache() {
   const newCount = allRows.filter(({o}) => !o.processingAt && o.status !== 'cancelled' && o.status !== 'completed').length;
   const totalUnreadMsgs = Object.values(unreadByOrderId).reduce((s,n) => s+n, 0);
   const combinedBadgeCount = newCount + totalUnreadMsgs;
-  ['ordersUnreadBadge','ordersUnreadBadge2'].forEach(bid => {
+  ['ordersUnreadBadge','ordersUnreadBadge2','topOrdersBadge'].forEach(bid => {
     const badge = document.getElementById(bid);
     if (!badge) return;
     if (combinedBadgeCount > 0) { badge.textContent = combinedBadgeCount; badge.classList.remove('hidden'); }

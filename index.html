@@ -2901,7 +2901,7 @@ async function registerFcmToken(identityType, identityId) {
   try {
     if (Notification.permission === 'default') await Notification.requestPermission();
     if (Notification.permission !== 'granted') return;
-    if (!messaging) messaging = firebase.messaging();
+    if (!messaging) messaging = firebase.app('KawtharAdminPanel').messaging();
     const registration = await navigator.serviceWorker.ready;
     const token = await messaging.getToken({ vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: registration });
     if (!token) return;
@@ -2918,9 +2918,15 @@ const STUDENT_AUTH_DOMAIN = "kawthar-students.app"; // نطاق وهمي لتح�
 function studentEmailFromPhone(phone) { return `${phone}@${STUDENT_AUTH_DOMAIN}`; }
 
 try {
-  firebase.initializeApp(firebaseConfig);
-  db = firebase.firestore();
-  auth = firebase.auth();
+  // نعطي تطبيق Firebase هنا اسم خاص ("KawtharAdminPanel") بدل الاسم الافتراضي —
+  // السبب: موقع لوحة التحكم هذا وموقع الزبون/الطالب/الأستاذ الرئيسي منشورين على نفس النطاق
+  // (alkwther.github.io)، والمتصفح يخزّن جلسة الدخول بشكل مشترك بين كل المواقع على نفس النطاق.
+  // فلو استخدمنا الاسم الافتراضي هنا، تسجيل دخولك كمشرف/موظف بهذي اللوحة كان يخلي الموقع
+  // الرئيسي (الخاص بالزبائن والطلاب والأساتذة) يظهر "مسجّل دخول" بنفس اسمك بالغلط.
+  // إعطاء اسم مستقل يفصل جلسة هذي اللوحة تماماً عن جلسة الموقع الرئيسي.
+  const adminFirebaseApp = firebase.initializeApp(firebaseConfig, 'KawtharAdminPanel');
+  db = adminFirebaseApp.firestore();
+  auth = adminFirebaseApp.auth();
   // ملاحظة: أزلنا استدعاء setPersistence لأنه كان المصدر الحقيقي لمشكلة "تسجيل الدخول ما يبقى محفوظ".
   // السبب: هذا الاستدعاء يعيد تهيئة نظام حفظ الجلسة بعد ما يكون Firebase قد بدأ فعلاً
   // بقراءة الجلسة المحفوظة من الجهاز (بالخلفية) — يعني يحصل تعارض توقيت (race condition):
@@ -11715,8 +11721,14 @@ function tbRenderStageBlocks() {
   const container = document.getElementById('tbStageBlocks');
   const stages = ['primary','middle','secondary'];
   const gradesByStage = { primary: [], middle: [], secondary: [] };
+  const seenNamesPerStage = { primary: new Set(), middle: new Set(), secondary: new Set() };
   Object.entries(TB_GRADES).forEach(([gid, g]) => {
-    if (gradesByStage[g.stage]) gradesByStage[g.stage].push([gid, g]);
+    if (!gradesByStage[g.stage]) return;
+    // حماية من تكرار نفس اسم الصف مرتين (لو تكرر بقاعدة البيانات بالغلط) — نعرض أول وحدة بس ونتجاهل الباقي
+    const seen = seenNamesPerStage[g.stage];
+    if (seen.has(g.name)) return;
+    seen.add(g.name);
+    gradesByStage[g.stage].push([gid, g]);
   });
   const blocksHtml = stages.map(stage => {
     const grades = gradesByStage[stage];

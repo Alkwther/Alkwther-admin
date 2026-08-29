@@ -2556,6 +2556,7 @@ main{max-width:560px;margin:0 auto;padding:20px 14px 100px;}#screen-textbooks /*
     <button class="btn secondary hidden" id="tchMyOrdersBtn" onclick="teacherOrdersContextName=null; show('screen-teacher-orders'); switchTeacherOrdersTab('new');">📦 طلبات ملازمي (توصيلي الخاص)</button>
     <button class="btn secondary" onclick="openStaffTeacherChatFromTeacher()">💬 الدردشة مع الإدارة <span id="teacherChatUnreadBadge" class="hidden" style="background:#dc2626;color:#fff;border-radius:10px;padding:2px 9px;font-size:12px;margin-inline-start:6px;">0</span></button>
     <button class="btn secondary" id="tchBuyCodeBtn" onclick="openTeacherBuyCode()">🎫 عرض أكواد الاشتراك</button>
+    <button class="btn secondary" id="tchAddFreeLessonBtn" onclick="openTeacherFreeLessons()">🎁 إضافة دروس مجانية</button>
     <button class="btn secondary" onclick="show('screen-print-shop')">🖨️ المطبعة — أسعار الطباعة</button>
     <div class="card" id="tchAddClassCard">
       <h3>➕ إضافة صف تدرّسه</h3>
@@ -2571,6 +2572,35 @@ main{max-width:560px;margin:0 auto;padding:20px 14px 100px;}#screen-textbooks /*
       <h3 style="margin-bottom:10px;color:#10203f;">🧾 طلبات زبائن ملازمك</h3>
       <div id="tchBookletCustomersList"></div>
     </div>
+  </div>
+
+  <!-- إضافة دروس مجانية (الأستاذ نفسه) -->
+  <div class="screen hidden" id="screen-teacher-free-lessons">
+    <button class="btn secondary" onclick="show('screen-teacher-dashboard')">← رجوع</button>
+    <div class="card">
+      <h3>🎁 إضافة درس مجاني جديد</h3>
+      <p style="font-size:12.5px;color:#8a90a3;margin-top:-4px;">الدرس المجاني يظهر لأي طالب بدون ما يحتاج يفعّل اشتراك — طريقة جيدة تعرّف فيها الطلاب على أسلوبك بالتدريس.</p>
+      <label>المرحلة الدراسية</label>
+      <select id="tflGrade"></select>
+      <label>اسم المادة</label>
+      <input id="tflSubject" placeholder="مثال: رياضيات">
+      <label>عنوان الدرس</label>
+      <input id="tflTitle" placeholder="مثال: مقدمة في القطع المخروطية">
+      <label>كتابة نص / شرح (اختياري)</label>
+      <textarea id="tflText" rows="4" placeholder="اكتب أي شرح أو ملاحظات نصيّة عن الدرس هنا..."></textarea>
+      <label>رابط يوتيوب (اختياري)</label>
+      <input id="tflVideoUrl" placeholder="https://youtube.com/...">
+      <label>إضافة صور (اختياري، يمكن اختيار أكثر من صورة)</label>
+      <input type="file" id="tflImagesInput" accept="image/*" multiple>
+      <div id="tflImagesPreview" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"></div>
+      <label style="margin-top:10px;">إضافة ملف PDF (اختياري، الحجم الأقصى 700 كيلوبايت)</label>
+      <input type="file" id="tflPdfInput" accept="application/pdf">
+      <p id="tflPdfName" style="font-size:12px;color:#8a90a3;margin:4px 0 0;"></p>
+      <button class="btn" id="tflSubmitBtn" style="margin-top:12px;">✅ نشر الدرس المجاني</button>
+      <p id="tflMsg" style="font-size:13px;margin-top:8px;"></p>
+    </div>
+    <h3 style="margin:16px 0 10px;color:#10203f;">📂 دروسي المجانية المرفوعة</h3>
+    <div id="tflMyLessonsList"></div>
   </div>
 
   <!-- شراء كود: قائمة صفوف الأستاذ -->
@@ -4044,6 +4074,7 @@ function fullLogout() {
   currentStaffRole = null;
   currentStaffPermissions = {};
   currentTeacher = null;
+  teacherModeWatcherStarted = false;
   document.getElementById('adminPanel').classList.add('hidden');
   document.getElementById('adminLoginCard').classList.remove('hidden');
   document.getElementById('adminUser').value = '';
@@ -4468,6 +4499,17 @@ async function loadTeachersAdmin() {
         <button class="small-btn" onclick="copyTeacherPassword('${d.id}')">📋 نسخ</button>
         <button class="small-btn" onclick="changeTeacherPassword('${d.id}','${t.phone}')">✏️ تغيير كلمة السر</button>
       </div>
+      <div style="background:#f6f0e4;border-radius:10px;padding:10px;margin-top:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:200px;">
+          <label style="font-size:12px;margin-bottom:2px;">🎓 نوع النشاط (يتحكم بما يظهر له بلوحته)</label>
+          <select id="tchMode-${d.id}" style="margin-bottom:0;">
+            <option value="teaching" ${(t.mode||'both') === 'teaching' ? 'selected' : ''}>📖 التدريس بالمنصة فقط</option>
+            <option value="booklets" ${(t.mode||'both') === 'booklets' ? 'selected' : ''}>📦 بيع الملازم فقط</option>
+            <option value="both" ${(t.mode||'both') === 'both' ? 'selected' : ''}>🎓 كلاهما (تدريس + بيع ملازم)</option>
+          </select>
+        </div>
+        <button class="small-btn" onclick="saveTeacherMode('${d.id}')" style="height:44px;">💾 حفظ</button>
+      </div>
       <div style="background:#f2f7fa;border-radius:10px;padding:10px;margin-top:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <div style="flex:1;min-width:150px;">
           <label style="font-size:12px;margin-bottom:2px;">الجنس (ذكر/أنثى)</label>
@@ -4511,6 +4553,14 @@ async function saveTeacherGender(teacherId) {
   const gender = document.getElementById(`tchGender-${teacherId}`).value;
   await db.collection('teachers').doc(teacherId).update({ gender });
   alert('تم حفظ الجنس ✅');
+  loadTeachersAdmin();
+}
+// يغيّر نوع نشاط الأستاذ (تدريس/بيع ملازم/كلاهما) — ينعكس على لوحة الأستاذ من أول مرة يفتحها
+// بعد هذا التغيير (أو فوراً لو كان بنفس اللحظة داخل جلسته، عبر مراقب مباشر مربوط بجلسته)
+async function saveTeacherMode(teacherId) {
+  const mode = document.getElementById(`tchMode-${teacherId}`).value;
+  await db.collection('teachers').doc(teacherId).update({ mode });
+  alert('تم حفظ نوع النشاط ✅ — سينعكس على لوحة الأستاذ');
   loadTeachersAdmin();
 }
 async function saveTeacherPercents(teacherId) {
@@ -6141,7 +6191,7 @@ async function loadOnlineNow() {
           </div>
         </div>
       </div>`).join('');
-  } catch(e) { console.error(e); list.innerHTML = '<p style="color:#b91c1c;">تعذّر التحميل.</p>'; }
+  } catch(e) { console.error(e); list.innerHTML = `<p style="color:#b91c1c;">تعذّر التحميل: ${e.code||''} ${e.message||''}</p>`; }
 }
 // يستنتج نوع الجهاز ونظام التشغيل من نص الـ userAgent المحفوظ وقت التثبيت
 function deviceInfoFromUserAgent(ua) {
@@ -6182,7 +6232,7 @@ async function loadAppInstalls() {
         <p style="margin:4px 0 0;color:#8a90a3;font-size:12px;">🗓️ ${new Date(p.installedAt).toLocaleString('ar-EG',{dateStyle:'medium',timeStyle:'short'})}</p>
       </div>`;
     }).join('');
-  } catch(e) { console.error(e); list.innerHTML = '<p style="color:#b91c1c;">تعذّر التحميل.</p>'; }
+  } catch(e) { console.error(e); list.innerHTML = `<p style="color:#b91c1c;">تعذّر التحميل: ${e.code||''} ${e.message||''}</p>`; }
 }
 function renderCustomersByProvince() {
   const box = document.getElementById('customersByProvinceList');
@@ -7826,6 +7876,157 @@ document.getElementById('teacherRegisterBtn').onclick = async () => {
 };
 
 function teacherTitle(gender) { return gender === 'female' ? 'أستاذة' : 'أستاذ'; }
+// يراقب مستند الأستاذ نفسه حيّاً — لو المشرف/الموظف غيّر نوع نشاطه وهو بنفس الجلسة،
+// تتحدّث لوحته فوراً بدون ما يحتاج يسجّل خروج ودخول من جديد
+let teacherModeWatcherStarted = false;
+function watchOwnTeacherMode() {
+  if (teacherModeWatcherStarted || !currentTeacher) return;
+  teacherModeWatcherStarted = true;
+  db.collection('teachers').doc(currentTeacher.id).onSnapshot(doc => {
+    if (!doc.exists || !currentTeacher) return;
+    const data = doc.data();
+    if (data.mode !== currentTeacher.mode) {
+      currentTeacher.mode = data.mode;
+      applyTeacherModeUI();
+    }
+  }, e => console.error(e));
+}
+
+// ---------- إضافة دروس مجانية (الأستاذ نفسه) ----------
+let tflSelectedImages = [];
+let tflSelectedPdfBase64 = null;
+function openTeacherFreeLessons() {
+  document.getElementById('tflGrade').innerHTML = GRADES.map(g => `<option>${g}</option>`).join('');
+  document.getElementById('tflSubject').value = '';
+  document.getElementById('tflTitle').value = '';
+  document.getElementById('tflText').value = '';
+  document.getElementById('tflVideoUrl').value = '';
+  document.getElementById('tflImagesInput').value = '';
+  document.getElementById('tflPdfInput').value = '';
+  document.getElementById('tflPdfName').textContent = '';
+  document.getElementById('tflMsg').textContent = '';
+  tflSelectedImages = [];
+  tflSelectedPdfBase64 = null;
+  renderTflImagesPreview();
+  show('screen-teacher-free-lessons');
+  loadMyFreeLessons();
+}
+function compressImageForFreeLesson(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_DIM = 1280;
+        let w = img.width, h = img.height;
+        if (w > h && w > MAX_DIM) { h = Math.round(h * MAX_DIM/w); w = MAX_DIM; }
+        else if (h >= w && h > MAX_DIM) { w = Math.round(w * MAX_DIM/h); h = MAX_DIM; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.65));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+function renderTflImagesPreview() {
+  const box = document.getElementById('tflImagesPreview');
+  box.innerHTML = tflSelectedImages.map((img, i) => `
+    <div style="position:relative;">
+      <img src="${img}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;">
+      <button onclick="removeTflImage(${i})" style="position:absolute;top:-6px;left:-6px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;line-height:1;">✕</button>
+    </div>`).join('');
+}
+function removeTflImage(i) { tflSelectedImages.splice(i,1); renderTflImagesPreview(); }
+document.getElementById('tflImagesInput').addEventListener('change', async () => {
+  const files = Array.from(document.getElementById('tflImagesInput').files);
+  for (const file of files) {
+    try { tflSelectedImages.push(await compressImageForFreeLesson(file)); }
+    catch(e) { console.error(e); }
+  }
+  document.getElementById('tflImagesInput').value = '';
+  renderTflImagesPreview();
+});
+document.getElementById('tflPdfInput').addEventListener('change', () => {
+  const file = document.getElementById('tflPdfInput').files[0];
+  if (!file) { tflSelectedPdfBase64 = null; document.getElementById('tflPdfName').textContent = ''; return; }
+  if (file.size > 700*1024) {
+    alert(`حجم الملف كبير (${Math.round(file.size/1024)} كيلوبايت) — الحد الأقصى 700 كيلوبايت. اختر ملف أصغر.`);
+    document.getElementById('tflPdfInput').value = '';
+    tflSelectedPdfBase64 = null;
+    document.getElementById('tflPdfName').textContent = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    tflSelectedPdfBase64 = e.target.result;
+    document.getElementById('tflPdfName').textContent = `📄 ${file.name} (${Math.round(file.size/1024)} كيلوبايت)`;
+  };
+  reader.readAsDataURL(file);
+});
+document.getElementById('tflSubmitBtn').onclick = async () => {
+  const grade = document.getElementById('tflGrade').value;
+  const subject = document.getElementById('tflSubject').value.trim();
+  const title = document.getElementById('tflTitle').value.trim();
+  const text = document.getElementById('tflText').value.trim();
+  const videoUrl = document.getElementById('tflVideoUrl').value.trim();
+  if (!subject || !title) { setMsg('tflMsg','لازم تكتب اسم المادة وعنوان الدرس على الأقل', false); return; }
+  if (!videoUrl && !text && tflSelectedImages.length === 0 && !tflSelectedPdfBase64) {
+    setMsg('tflMsg','أضف على الأقل شي وحد: نص، رابط فيديو، صورة، أو ملف PDF', false); return;
+  }
+  try {
+    await db.collection('lessons').add({
+      grade, subject, chapter: 'عام', title,
+      videoUrl: videoUrl || null,
+      description: text || null,
+      images: tflSelectedImages,
+      pdfFile: tflSelectedPdfBase64 || null,
+      pdfUrl: null,
+      free: true,
+      teacherName: currentTeacher.name,
+      addedBy: currentTeacher.name,
+      createdAt: Date.now()
+    });
+    setMsg('tflMsg','✅ تم نشر الدرس المجاني بنجاح', true);
+    document.getElementById('tflSubject').value = '';
+    document.getElementById('tflTitle').value = '';
+    document.getElementById('tflText').value = '';
+    document.getElementById('tflVideoUrl').value = '';
+    document.getElementById('tflPdfInput').value = '';
+    document.getElementById('tflPdfName').textContent = '';
+    tflSelectedImages = [];
+    tflSelectedPdfBase64 = null;
+    renderTflImagesPreview();
+    loadMyFreeLessons();
+  } catch(e) {
+    console.error(e);
+    setMsg('tflMsg', 'تعذّر النشر: ' + (e.message||'خطأ غير معروف'), false);
+  }
+};
+async function loadMyFreeLessons() {
+  const list = document.getElementById('tflMyLessonsList');
+  list.innerHTML = '<p>جاري التحميل...</p>';
+  try {
+    const snap = await db.collection('lessons').where('teacherName','==', currentTeacher.name).where('free','==',true).get();
+    if (snap.empty) { list.innerHTML = '<div class="card"><p>ما نشرت أي درس مجاني بعد.</p></div>'; return; }
+    const rows = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.createdAt||0)-(a.createdAt||0));
+    list.innerHTML = rows.map(l => `
+      <div class="lesson-row">
+        <div class="title">${l.title}<br><span style="font-size:12px;color:#8a90a3;">${l.subject} — ${l.grade}</span></div>
+        <button class="small-btn" onclick="deleteMyFreeLesson('${l.id}')">🗑️</button>
+      </div>`).join('');
+  } catch(e) { console.error(e); list.innerHTML = '<p style="color:#b91c1c;">تعذّر التحميل.</p>'; }
+}
+async function deleteMyFreeLesson(id) {
+  if (!confirm('حذف هذا الدرس المجاني؟')) return;
+  await db.collection('lessons').doc(id).delete();
+  loadMyFreeLessons();
+}
 
 document.getElementById('teacherLoginBtn').onclick = async () => {
   const phone = toEnglishDigits(document.getElementById('teacherPhone').value.trim().replace(/[\s\-]/g,''));
@@ -7841,6 +8042,7 @@ document.getElementById('teacherLoginBtn').onclick = async () => {
     document.getElementById('teacherPhotoPreview').src = t.photo || DEFAULT_AVATAR;
     db.collection('teacherPhoneIndex').doc(t.phone).set({ name: t.name }).catch(e => console.error(e));
     applyTeacherModeUI();
+    watchOwnTeacherMode();
     setupTeacherOrderMessageNotifications();
     refreshTeacherBellBadge();
     registerFcmToken('teacher', t.phone);
@@ -7966,6 +8168,7 @@ function applyTeacherModeUI() {
   document.getElementById('tchClassesHeading').classList.toggle('hidden', !isTeaching);
   document.getElementById('teacherClassesList').classList.toggle('hidden', !isTeaching);
   document.getElementById('tchBuyCodeBtn').classList.toggle('hidden', !isTeaching);
+  document.getElementById('tchAddFreeLessonBtn').classList.toggle('hidden', !isTeaching);
 
   document.getElementById('tchBookletCustomersSection').classList.toggle('hidden', mode !== 'booklets');
   if (mode === 'booklets') loadTeacherBookletCustomers();
@@ -10084,6 +10287,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
           document.getElementById('teacherPhotoPreview').src = t.photo || DEFAULT_AVATAR;
           db.collection('teacherPhoneIndex').doc(t.phone).set({ name: t.name }).catch(e => console.error(e));
           applyTeacherModeUI();
+          watchOwnTeacherMode();
           setupTeacherOrderMessageNotifications();
           refreshTeacherBellBadge();
           registerFcmToken('teacher', t.phone);

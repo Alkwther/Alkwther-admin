@@ -4482,13 +4482,19 @@ async function loadTeachersAdmin() {
       : '<p style="font-size:12px;color:#8a90a3;">ما فيه محاضرات مرفوعة له بعد.</p>';
     return `<div class="admin-list-item" style="flex-direction:column;align-items:stretch;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
-        <div><b>${t.name}</b><br><span style="color:#888;">📞 ${t.phone}</span><br><span style="color:#0e8fa8;font-size:13px;">📚 ${classesText}</span><br><span style="color:#888;">أضافه: ${t.addedBy||'—'}</span></div>
+        <div style="cursor:pointer;" onclick="toggleTeacherDetails('${d.id}')">
+          <b>${t.name} <span style="font-size:12px;color:#0e8fa8;">(اضغط لعرض/إخفاء الإعدادات ▾)</span></b><br>
+          <span style="color:#888;">📞 ${t.phone}</span><br>
+          <span style="color:#0e8fa8;font-size:13px;">📚 ${classesText}</span><br>
+          <span style="color:#888;">أضافه: ${t.addedBy||'—'}</span>
+        </div>
         <div style="display:flex;gap:6px;">
           <button class="small-btn" onclick="openChat('staffteacher_${t.phone}','💬 ${t.name.replace(/'/g,"\\'")}')">💬 دردشة</button>
           <button class="small-btn" onclick="toggleTeacherLecturePanel('${d.id}')">🎬 إضافة محاضرة</button>
           <button class="small-btn" onclick="deleteTeacher('${d.id}')">🗑️ حذف</button>
         </div>
       </div>
+      <div id="tchDetails-${d.id}" class="hidden">
       <div style="background:#eef1f8;border-radius:10px;padding:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <div style="flex:1;min-width:160px;">
           <span style="font-size:12px;color:#8a90a3;">🔑 كلمة السر: </span>
@@ -4531,6 +4537,7 @@ async function loadTeachersAdmin() {
         </div>
         <button class="small-btn" onclick="saveTeacherPercents('${d.id}')" style="height:44px;">💾 حفظ النسب</button>
       </div>
+      </div>
       <div id="tchLecturePanel-${d.id}" class="hidden" style="background:#f6f7fb;border-radius:10px;padding:10px;margin-top:6px;">
         <p style="font-weight:bold;color:#10203f;margin-bottom:8px;">إضافة محاضرة لل${teacherTitle(t.gender)} ${t.name}</p>
         <select id="tchLecGrade-${d.id}">${gradeOptions}</select>
@@ -4543,6 +4550,9 @@ async function loadTeachersAdmin() {
       </div>
     </div>`;
   }).join('');
+}
+function toggleTeacherDetails(id) {
+  document.getElementById(`tchDetails-${id}`).classList.toggle('hidden');
 }
 async function deleteTeacherLecture(lessonId, teacherId) {
   if (!confirm('حذف هذي المحاضرة؟')) return;

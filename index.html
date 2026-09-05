@@ -5237,11 +5237,56 @@ async function loadNotebooksAdmin() {
   list.innerHTML = snap.docs.map(d => {
     const n = d.data();
     const thumb = n.image ? `<img src="${n.image}" style="width:44px;height:44px;object-fit:cover;border-radius:8px;margin-inline-end:10px;">` : '';
-    return `<div class="admin-list-item">
-      <div style="display:flex;align-items:center;">${thumb}<div>${n.title} — ${n.pages} صفحة — <span style="color:#b8903c;">${n.price} د.ع</span></div></div>
-      <button class="small-btn" onclick="deleteNotebook('${d.id}')">🗑️ حذف</button>
+    return `<div class="admin-list-item" style="flex-direction:column;align-items:stretch;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;align-items:center;">${thumb}<div>${n.title} — ${n.pages} صفحة — <span style="color:#b8903c;">${n.price} د.ع</span></div></div>
+        <div style="display:flex;gap:6px;">
+          <button class="small-btn" onclick="toggleNotebookEdit('${d.id}')">✏️ تعديل</button>
+          <button class="small-btn" onclick="deleteNotebook('${d.id}')">🗑️ حذف</button>
+        </div>
+      </div>
+      <div id="nbEdit-${d.id}" class="hidden" style="background:#f6f7fb;border-radius:10px;padding:10px;margin-top:8px;">
+        <label style="font-size:12px;margin-bottom:2px;">اسم الدفتر</label>
+        <input id="nbEditTitle-${d.id}" value="${n.title.replace(/"/g,'&quot;')}">
+        <label style="font-size:12px;margin-bottom:2px;">عدد الصفحات</label>
+        <input id="nbEditPages-${d.id}" type="number" value="${n.pages}">
+        <label style="font-size:12px;margin-bottom:2px;">السعر (د.ع)</label>
+        <input id="nbEditPrice-${d.id}" type="number" value="${n.price}">
+        <label style="font-size:12px;margin-bottom:2px;">تغيير الصورة (اختياري — اتركه فارغ للاحتفاظ بالصورة الحالية)</label>
+        <input type="file" id="nbEditImage-${d.id}" accept="image/*">
+        <div id="nbEditImagePreview-${d.id}" style="margin:6px 0;">${n.image ? `<img src="${n.image}" style="width:70px;border-radius:8px;">` : ''}</div>
+        <button class="btn" style="margin-top:6px;" onclick="saveNotebookEdit('${d.id}')">💾 حفظ التعديلات</button>
+      </div>
     </div>`;
   }).join('');
+}
+function toggleNotebookEdit(id) {
+  document.getElementById(`nbEdit-${id}`).classList.toggle('hidden');
+}
+document.addEventListener('change', async (e) => {
+  if (!e.target.matches('[id^="nbEditImage-"]')) return;
+  const id = e.target.id.replace('nbEditImage-','');
+  const file = e.target.files[0];
+  const preview = document.getElementById(`nbEditImagePreview-${id}`);
+  if (!file) return;
+  preview.innerHTML = '<p>⏳ جاري تجهيز الصورة...</p>';
+  try {
+    const url = await uploadImageFile(file, 500);
+    preview.innerHTML = `<img src="${url}" style="width:70px;border-radius:8px;">`;
+    preview.dataset.image = url;
+  } catch(err) { console.error(err); preview.innerHTML = '<p style="color:#b91c1c;">تعذّر رفع الصورة: ' + (err.message||"خطأ غير معروف") + '</p>'; }
+});
+async function saveNotebookEdit(id) {
+  const title = document.getElementById(`nbEditTitle-${id}`).value.trim();
+  const pages = +document.getElementById(`nbEditPages-${id}`).value;
+  const price = +document.getElementById(`nbEditPrice-${id}`).value;
+  if (!title || !pages || !price) { alert('عبّئ اسم الدفتر، عدد الصفحات، والسعر'); return; }
+  const update = { title, pages, price };
+  const newImage = document.getElementById(`nbEditImagePreview-${id}`).dataset.image;
+  if (newImage) update.image = newImage;
+  await db.collection('notebooks').doc(id).update(update);
+  alert('تم حفظ التعديلات ✅');
+  loadNotebooksAdmin();
 }
 async function deleteNotebook(id) {
   if (!confirm('حذف هذا الدفتر؟')) return;

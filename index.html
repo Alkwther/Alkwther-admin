@@ -7143,8 +7143,6 @@ async function loadAdminTeacherStores() {
     const ordersSnap = await db.collection('orders').get();
     const todayStart = new Date(); todayStart.setHours(0,0,0,0);
     const todayStartMs = todayStart.getTime();
-    const deliveryFeeByTeacher = {};
-    stores.forEach(t => { deliveryFeeByTeacher[t.name] = t.storeDeliveryFee || 0; });
     const selfOwed = {}, selfCount = {}, libOwed = {}, libCount = {}, todayCount = {};
     ordersSnap.docs.forEach(d => {
       const o = d.data();
@@ -7176,11 +7174,12 @@ async function loadAdminTeacherStores() {
             if (b) perTeacherRaw[b.teacherName] = (perTeacherRaw[b.teacherName]||0) + b.teacherShare * item.qty;
           });
         }
+        // ملاحظة: أجرة التوصيل اللي يدفعها الزبون منفصلة تماماً عن حصة الأستاذ — المكتبة تحصّلها
+        // وتحتفظ فيها لنفسها، ما تُطرح من مستحقات الأستاذ إطلاقاً
         Object.keys(perTeacherRaw).forEach(name => {
           namesInThisOrder.add(name);
           if (settled[name]) return;
-          const net = Math.max(0, perTeacherRaw[name] - (deliveryFeeByTeacher[name]||0));
-          libOwed[name] = (libOwed[name]||0) + net;
+          libOwed[name] = (libOwed[name]||0) + perTeacherRaw[name];
           libCount[name] = (libCount[name]||0) + 1;
         });
         if (isToday) namesInThisOrder.forEach(name => { todayCount[name] = (todayCount[name]||0) + 1; });
@@ -7709,19 +7708,16 @@ async function loadTeacherEarningsAdmin() {
 
   const rows = teachersSnap.docs.map(t => {
     const teacherName = t.data().name;
-    const storeDeliveryFee = t.data().storeDeliveryFee || 0;
     let unsettled = 0;
     relevantOrders.forEach(d => {
       const o = d.data();
       const settled = o.teacherPayoutsSettled || {};
       if (settled[teacherName]) return;
-      let raw = 0;
       if (o.teacherPayouts && o.teacherPayouts[teacherName] != null) {
-        raw = o.teacherPayouts[teacherName];
+        unsettled += o.teacherPayouts[teacherName];
       } else if (!o.teacherPayouts) {
-        (o.items||[]).forEach(item => { const b = bookInfoById[item.bookId]; if (b && b.teacherName === teacherName) raw += b.teacherShare * item.qty; });
+        (o.items||[]).forEach(item => { const b = bookInfoById[item.bookId]; if (b && b.teacherName === teacherName) unsettled += b.teacherShare * item.qty; });
       }
-      if (raw > 0) unsettled += Math.max(0, raw - storeDeliveryFee); // أجرة توصيل مرة وحدة للطلب، مطروحة من حصته
     });
     return { teacherName, unsettled };
   });
@@ -7755,8 +7751,6 @@ async function settleTeacherEarnings(teacherName) {
   const booksSnap = await db.collection('books').get();
   const bookInfoById = {};
   booksSnap.docs.forEach(d => { const b = d.data(); if (b.teacherName) bookInfoById[d.id] = { teacherName: b.teacherName, teacherShare: b.teacherShare || 0 }; });
-  const teacherDocSnap = await db.collection('teachers').where('name','==', teacherName).limit(1).get();
-  const storeDeliveryFee = teacherDocSnap.empty ? 0 : (teacherDocSnap.docs[0].data().storeDeliveryFee || 0);
   const batchUpdates = [];
   let total = 0, count = 0;
   relevant.forEach(d => {
@@ -7771,8 +7765,8 @@ async function settleTeacherEarnings(teacherName) {
       payouts = { ...(payouts||{}), [teacherName]: rawAmount };
     }
     if (rawAmount <= 0) return;
-    // نطرح أجرة التوصيل مرة وحدة لكل طلب (مو لكل قطعة) — هذا مبلغ التوصيل الحقيقي اللي تحمّلته المكتبة
-    const amount = Math.max(0, rawAmount - storeDeliveryFee);
+    // أجرة التوصيل منفصلة عن حصة الأستاذ (تحصّلها المكتبة من الزبون مباشرة)، ما تُطرح من حصته
+    const amount = rawAmount;
     const settled = o.teacherPayoutsSettled || {};
     settled[teacherName] = true;
     batchUpdates.push(d.ref.update({ teacherPayouts: payouts, teacherPayoutsSettled: settled, teacherPayoutsComputed: true }));
@@ -8441,10 +8435,12 @@ function renderTeacherOrderCard(id, o, useOwnStatus) {
     if (it.grade) parts.push(it.grade);
     return `${parts.join(' — ')}: ${it.price} × ${it.qty} = ${it.price*it.qty} د.ع`;
   }).join('<br>');
+  const isSelfDelivery = o.fulfillment === 'teacher';
   const isAdminViewing = !!teacherOrdersContextName; // المشرف/الموظف يشاهد بس، ما يتحكم
   let actionsHtml = '';
-  if (isAdminViewing) {
-    actionsHtml = `<button class="small-btn" onclick="openChat('order_${id}','💬 طلب ${o.studentName}')">👁️ مشاهدة المحادثة</button>`;
+  if (isAdminViewing || !isSelfDelivery) {
+    // طلبات توصيل المكتبة: الأستاذ يشوفها بس (المكتبة هي اللي تتحكم بحالة توصيلها)، والمشرف/الموظف نفس الشي
+    actionsHtml = `<button class="small-btn" onclick="openChat('order_${id}','💬 طلب ${o.studentName}')">${isAdminViewing ? '👁️ مشاهدة المحادثة' : '💬 مراسلة الزبون'}</button>`;
   } else {
     actionsHtml = `<button class="small-btn" onclick="teacherCopyOrder('${id}')">📋 نسخ</button>
     <button class="small-btn" onclick="openChat('order_${id}','💬 طلب ${o.studentName}')">💬 مراسلة الزبون</button>`;
@@ -8462,8 +8458,9 @@ function renderTeacherOrderCard(id, o, useOwnStatus) {
     actionsHtml += `<button class="small-btn" onclick="copyOrderLink('${id}')">🔗 نسخ رابط الطلب</button>`;
   }
   const statusBadge = useOwnStatus ? `<span style="background:#eef1f8;color:#10203f;border-radius:8px;padding:2px 8px;font-size:11px;font-weight:bold;">${ORDER_STATUS_LABELS[o.status]||o.status}</span>` : '';
+  const deliveryLabel = isSelfDelivery ? '🚚 التوصيل: أنت (توصيلك الخاص)' : '📦 التوصيل: المكتبة';
   return `<div class="card">
-    <p style="margin:0;color:#0e6fa8;font-weight:bold;">🚚 التوصيل: أنت (توصيلك الخاص) ${statusBadge}</p>
+    <p style="margin:0;color:#0e6fa8;font-weight:bold;">${deliveryLabel} ${statusBadge}</p>
     <p style="margin:4px 0 0;"><b>👤 ${o.studentName}</b> — 📞 ${o.phone}</p>
     <p style="margin:4px 0;color:#8a90a3;">${o.province||''} ${o.district? '- '+o.district : ''}</p>
     <p style="margin:4px 0;">${itemsText}</p>
@@ -8504,9 +8501,23 @@ async function loadTeacherOrdersByPeriod(period) {
   const list = document.getElementById('teacherOrdersPeriodList');
   list.innerHTML = '<p>جاري التحميل...</p>';
   try {
-    const snap = await db.collection('orders').where('fulfillmentTeacherName','==', getTeacherOrdersContextName()).where('fulfillment','==','teacher').get();
+    const teacherName = getTeacherOrdersContextName();
+    // توصيل ذاتي (الأستاذ يوصّل بنفسه)
+    const selfSnap = await db.collection('orders').where('fulfillmentTeacherName','==', teacherName).where('fulfillment','==','teacher').get();
+    // توصيل المكتبة: أي طلب فيه ملزمة/كتاب من متجر هذا الأستاذ، بغض النظر مين وصّله
+    const booksSnap = await db.collection('books').where('teacherName','==', teacherName).get();
+    const teacherBookIds = new Set(booksSnap.docs.map(d => d.id));
+    let libRows = [];
+    if (teacherBookIds.size > 0) {
+      const allOrdersSnap = await db.collection('orders').get();
+      libRows = allOrdersSnap.docs.filter(d => {
+        const o = d.data();
+        if (o.fulfillment === 'teacher') return false; // هذي انحسبت أعلاه
+        return (o.items||[]).some(it => teacherBookIds.has(it.bookId));
+      });
+    }
     const cutoff = getPeriodStart(period);
-    const rows = snap.docs
+    const rows = [...selfSnap.docs, ...libRows]
       .map(d => ({ id: d.id, o: { ...d.data(), status: computeEffectiveStatus(d.data()) } }))
       .filter(({o}) => (o.createdAt||0) >= cutoff);
     rows.sort((a,b) => (b.o.createdAt||0) - (a.o.createdAt||0));

@@ -4194,7 +4194,7 @@ function setupNewOrdersBadgeWatcher() {
   newOrdersBadgeListenerStarted = true;
   let firstSnap = true;
   db.collection('orders').where('status','==','pending').onSnapshot(snap => {
-    const count = snap.docs.filter(d => d.data().fulfillment !== 'teacher').length;
+    const count = snap.docs.filter(d => d.data().fulfillment !== 'teacher' && !d.data().processingAt).length;
     ['ordersUnreadBadge','ordersUnreadBadge2','topOrdersBadge'].forEach(bid => {
       const badge = document.getElementById(bid);
       if (!badge) return;
@@ -7132,28 +7132,75 @@ async function loadAdminTeacherStores() {
       .filter(t => t.storeEnabled !== undefined || t.storeDescription || t.storeDeliveryFee);
     if (stores.length === 0) { list.innerHTML = '<div class="card"><p>ما فيه أي متجر أستاذ مفعّل أو مُعدّ بعد.</p></div>'; return; }
 
-    const ordersSnap = await db.collection('orders').where('fulfillment','==','teacher').get();
-    const owedByTeacher = {};
-    const countByTeacher = {};
+    // كل كتب/ملازم كل الأساتذة دفعة وحدة، حتى نقدر نحسب المستحق لأي طلب فوراً بدون انتظار وصوله لحالة معينة
+    const booksSnap = await db.collection('books').get();
+    const bookInfoById = {};
+    booksSnap.docs.forEach(d => { const b = d.data(); if (b.teacherName) bookInfoById[d.id] = { teacherName: b.teacherName, teacherShare: b.teacherShare || 0 }; });
+
+    // كل الطلبات غير الملغاة — نحسب المستحق حيّاً هنا (توصيل ذاتي = مستحق للمكتبة، توصيل المكتبة = مستحق للأستاذ)
+    // بدل الاعتماد فقط على حقول محسوبة سلفاً كانت أحياناً ما تُحسب إلا بعد اكتمال الطلب، فتختفي الطلبات
+    // "قيد التنفيذ" من هذي الشاشة رغم إنها فعلاً طلبات من متجر الأستاذ
+    const ordersSnap = await db.collection('orders').get();
+    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+    const todayStartMs = todayStart.getTime();
+    const deliveryFeeByTeacher = {};
+    stores.forEach(t => { deliveryFeeByTeacher[t.name] = t.storeDeliveryFee || 0; });
+    const selfOwed = {}, selfCount = {}, libOwed = {}, libCount = {}, todayCount = {};
     ordersSnap.docs.forEach(d => {
       const o = d.data();
-      if (o.status === 'cancelled' || o.platformOwedSettled) return;
-      const name = o.fulfillmentTeacherName;
-      if (!name) return;
-      owedByTeacher[name] = (owedByTeacher[name] || 0) + (o.platformOwedToLibrary || 0);
-      countByTeacher[name] = (countByTeacher[name] || 0) + 1;
+      if (o.status === 'cancelled') return;
+      const isToday = (o.createdAt||0) >= todayStartMs;
+      if (o.fulfillment === 'teacher' && o.fulfillmentTeacherName) {
+        const name = o.fulfillmentTeacherName;
+        if (!o.platformOwedSettled) {
+          let owed = o.platformOwedToLibrary;
+          if (owed == null) {
+            owed = 0;
+            (o.items||[]).forEach(item => { const b = bookInfoById[item.bookId]; if (b && b.teacherName === name) owed += (item.price - b.teacherShare) * item.qty; });
+          }
+          selfOwed[name] = (selfOwed[name]||0) + owed;
+          selfCount[name] = (selfCount[name]||0) + 1;
+        }
+        if (isToday) todayCount[name] = (todayCount[name]||0) + 1;
+      } else {
+        const settled = o.teacherPayoutsSettled || {};
+        const namesInThisOrder = new Set();
+        // نجمع حصة كل أستاذ بهذا الطلب أول شي، وبعدين نطرح أجرة توصيله مرة وحدة فقط للطلب كامل
+        // (مو لكل قطعة على حدة) — التوصيل يُدفع مرة وحدة للطلب بغض النظر عن عدد القطع بداخله
+        const perTeacherRaw = {};
+        if (o.teacherPayouts) {
+          Object.keys(o.teacherPayouts).forEach(name => { perTeacherRaw[name] = o.teacherPayouts[name]; });
+        } else {
+          (o.items||[]).forEach(item => {
+            const b = bookInfoById[item.bookId];
+            if (b) perTeacherRaw[b.teacherName] = (perTeacherRaw[b.teacherName]||0) + b.teacherShare * item.qty;
+          });
+        }
+        Object.keys(perTeacherRaw).forEach(name => {
+          namesInThisOrder.add(name);
+          if (settled[name]) return;
+          const net = Math.max(0, perTeacherRaw[name] - (deliveryFeeByTeacher[name]||0));
+          libOwed[name] = (libOwed[name]||0) + net;
+          libCount[name] = (libCount[name]||0) + 1;
+        });
+        if (isToday) namesInThisOrder.forEach(name => { todayCount[name] = (todayCount[name]||0) + 1; });
+      }
     });
 
     list.innerHTML = stores.map(t => {
-      const owed = owedByTeacher[t.name] || 0;
-      const count = countByTeacher[t.name] || 0;
+      const so = selfOwed[t.name] || 0, sc = selfCount[t.name] || 0;
+      const lo = libOwed[t.name] || 0, lc = libCount[t.name] || 0;
+      const tc = todayCount[t.name] || 0;
       return `<div class="admin-list-item" style="flex-direction:column;align-items:stretch;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-          <div><b>${t.name}</b><br><span style="color:#8a90a3;font-size:13px;">${t.storeDescription || 'بدون وصف'}</span></div>
+          <div><b>${t.name}</b><br><span style="color:#8a90a3;font-size:13px;">${t.storeDescription || 'بدون وصف'}</span><br><span style="color:#0e8fa8;font-size:13px;font-weight:bold;">📅 طلبات اليوم: ${tc}</span></div>
           <button class="small-btn" onclick="toggleTeacherStoreEnabled('${t.id}', ${!t.storeEnabled})" style="${t.storeEnabled ? 'background:#16a34a;color:#fff;' : 'background:#000;color:#fff;'}">${t.storeEnabled ? '🟢 مفعّل (إيقاف)' : '🔴 موقوف (تشغيل)'}</button>
         </div>
-        <button class="small-btn" style="margin-top:8px;${owed>0?'background:#b8903c;color:#fff;':'background:#ecfdf3;'}" onclick="toggleTeacherStoreSettlement('${t.name.replace(/'/g,"\\'")}')">
-          💰 المستحق للمكتبة: ${owed} د.ع (${count} طلب) ${owed>0 ? '— اضغط لتأكيد التحاسب' : '— تم التحاسب ✅'}
+        <button class="small-btn" style="margin-top:8px;${so>0?'background:#b8903c;color:#fff;':'background:#ecfdf3;'}" onclick="toggleTeacherStoreSettlement('${t.name.replace(/'/g,"\\'")}')">
+          🚚 توصيل ذاتي — مستحق للمكتبة: ${so} د.ع (${sc} طلب) ${so>0 ? '— اضغط لتأكيد التحاسب' : '— لا يوجد مستحق'}
+        </button>
+        <button class="small-btn" style="margin-top:6px;${lo>0?'background:#0e8fa8;color:#fff;':'background:#ecfdf3;'}" onclick="settleTeacherEarnings('${t.name.replace(/'/g,"\\'")}')">
+          📦 توصيل المكتبة — مستحق للأستاذ: ${lo} د.ع (${lc} طلب) ${lo>0 ? '— اضغط لتأكيد التحاسب' : '— لا يوجد مستحق'}
         </button>
         <button class="small-btn" style="margin-top:6px;" onclick="teacherOrdersContextName='${t.name.replace(/'/g,"\\'")}'; show('screen-teacher-orders'); switchTeacherOrdersTab('new'); loadTeacherOrdersByPeriod('month');">📊 سجل طلبات هذا المتجر (اليوم/الأسبوع/الشهر/السنة)</button>
         <button class="small-btn" style="margin-top:6px;" onclick="toggleSettlementHistory('${t.id}','${t.name.replace(/'/g,"\\'")}')">📜 سجل التحاسب السابق</button>
@@ -7170,9 +7217,15 @@ async function toggleTeacherStoreSettlement(teacherName) {
   const snap = await db.collection('orders').where('fulfillment','==','teacher').get();
   const unsettled = snap.docs.filter(d => d.data().fulfillmentTeacherName === teacherName && d.data().status !== 'cancelled' && !d.data().platformOwedSettled);
   if (unsettled.length === 0) { alert('ما فيه مبلغ مستحق حالياً على هذا الأستاذ.'); return; }
-  const total = unsettled.reduce((s,d) => s + (d.data().platformOwedToLibrary || 0), 0);
+  // نحسب المبلغ لأي طلب لسا ما انحسب له platformOwedToLibrary (مثلاً طلب قيد التنفيذ لسا ما وصل لحالة يُحسب فيها تلقائياً)
+  const amounts = await Promise.all(unsettled.map(async d => {
+    const o = d.data();
+    if (o.platformOwedToLibrary != null) return o.platformOwedToLibrary;
+    return await computePlatformOwedForOrder(o);
+  }));
+  const total = amounts.reduce((s,a) => s+a, 0);
   if (!confirm(`تأكيد إنك استلمت ${total} د.ع من الأستاذ ${teacherName} (عمولة المنصة عن ${unsettled.length} طلب)؟`)) return;
-  await Promise.all(unsettled.map(d => d.ref.update({ platformOwedSettled: true })));
+  await Promise.all(unsettled.map((d,i) => d.ref.update({ platformOwedToLibrary: amounts[i], platformOwedSettled: true })));
   await db.collection('settlements').add({
     teacherName, type: 'self', amount: total, orderCount: unsettled.length,
     settledAt: Date.now(), settledBy: currentStaffName || 'المشرف'
@@ -7480,21 +7533,28 @@ async function copySingleOrder(id) {
   const doc = await db.collection('orders').doc(id).get();
   if (!doc.exists) return;
   const o = doc.data();
-  // نحدّث الحالة أول شي قبل محاولة النسخ نفسها — حتى لو فشلت عملية النسخ أو تعلّقت
-  // (مثلاً بمتصفح مدمج داخل تطبيق تلغرام/واتساب ما يدعم النسخ التلقائي ويطلع نافذة يدوية)
-  // الطلب يتحول لـ"قيد التنفيذ" بأي الأحوال، بدل ما يبقى عالق بقائمة "جديدة" رغم إنك ضغطت نسخ فعلاً
+  // نبدأ محاولة النسخ فوراً (بأقرب لحظة ممكنة من ضغطة الزر نفسها) — متصفحات كثيرة تربط
+  // النسخ التلقائي للحافظة بلحظة الضغط مباشرة، وأي تأخير (حتى لو كتابة بقاعدة البيانات
+  // تسبقها) يخلي النسخ يفشل بصمت. نشغّلها بالتوازي، لا نستنى نتيجتها قبل تحديث الحالة.
+  const copyPromise = robustCopy(buildOrderBlock(o));
+  // تحديث الحالة مستقل تماماً عن نجاح/فشل النسخ — يصير مضمون 100% بأي الأحوال
   if (!o.processingAt) {
     const update = { status:'processing', processingAt: Date.now(), seenByStaff: true };
     if (o.fulfillment !== 'teacher' && !o.deliveringThresholdAt) {
       update.deliveringThresholdAt = computeDeliveringThresholdAt(o.createdAt);
     }
-    await db.collection('orders').doc(id).update(update);
+    try {
+      await db.collection('orders').doc(id).update(update);
+    } catch(e) {
+      console.error(e);
+      alert('⚠️ تم النسخ لكن تعذّر تحديث حالة الطلب لقيد التنفيذ بقاعدة البيانات (تحقق من الاتصال بالإنترنت) — اضغط "نسخ" مرة ثانية.');
+    }
   } else if (o.seenByStaff !== true) {
-    await db.collection('orders').doc(id).update({ seenByStaff: true });
+    await db.collection('orders').doc(id).update({ seenByStaff: true }).catch(e => console.error(e));
   }
   refreshBellBadge();
   loadOrdersAdmin();
-  await robustCopy(buildOrderBlock(o));
+  await copyPromise;
 }
 
 async function computePlatformOwedForOrder(order) {
@@ -7640,16 +7700,28 @@ async function loadTeacherEarningsAdmin() {
   const list = document.getElementById('teacherEarningsList');
   if (!list) return;
   const teachersSnap = await db.collection('teachers').get();
-  const completedOrders = await db.collection('orders').where('status','==','completed').get();
+  // نشمل كل الطلبات غير الملغاة (مو بس المكتملة) — عشان الطلبات "قيد التنفيذ" تظهر هي كمان
+  const ordersSnap = await db.collection('orders').get();
+  const relevantOrders = ordersSnap.docs.filter(d => d.data().status !== 'cancelled' && d.data().fulfillment !== 'teacher');
+  const booksSnap = await db.collection('books').get();
+  const bookInfoById = {};
+  booksSnap.docs.forEach(d => { const b = d.data(); if (b.teacherName) bookInfoById[d.id] = { teacherName: b.teacherName, teacherShare: b.teacherShare || 0 }; });
 
   const rows = teachersSnap.docs.map(t => {
     const teacherName = t.data().name;
+    const storeDeliveryFee = t.data().storeDeliveryFee || 0;
     let unsettled = 0;
-    completedOrders.docs.forEach(d => {
+    relevantOrders.forEach(d => {
       const o = d.data();
-      if (o.teacherPayouts && o.teacherPayouts[teacherName] && !(o.teacherPayoutsSettled && o.teacherPayoutsSettled[teacherName])) {
-        unsettled += o.teacherPayouts[teacherName];
+      const settled = o.teacherPayoutsSettled || {};
+      if (settled[teacherName]) return;
+      let raw = 0;
+      if (o.teacherPayouts && o.teacherPayouts[teacherName] != null) {
+        raw = o.teacherPayouts[teacherName];
+      } else if (!o.teacherPayouts) {
+        (o.items||[]).forEach(item => { const b = bookInfoById[item.bookId]; if (b && b.teacherName === teacherName) raw += b.teacherShare * item.qty; });
       }
+      if (raw > 0) unsettled += Math.max(0, raw - storeDeliveryFee); // أجرة توصيل مرة وحدة للطلب، مطروحة من حصته
     });
     return { teacherName, unsettled };
   });
@@ -7669,17 +7741,42 @@ async function loadTeacherEarningsAdmin() {
 }
 async function settleTeacherEarnings(teacherName) {
   if (!confirm(`تأكيد إنك حاسبت الأستاذ ${teacherName} على كامل المبلغ المستحق؟`)) return;
-  const completedOrders = await db.collection('orders').where('status','==','completed').get();
+  // نشمل كل الطلبات غير الملغاة (مو بس المكتملة) — الطلبات "قيد التنفيذ" اللي فيها ملازم لهذا الأستاذ
+  // تدخل بالحساب هي كمان، ونحسب حصته حيّاً لو ما كانت محسوبة سلفاً
+  const ordersSnap = await db.collection('orders').get();
+  const relevant = ordersSnap.docs.filter(d => {
+    const o = d.data();
+    if (o.status === 'cancelled') return false;
+    if (o.fulfillment === 'teacher') return false; // هذي توصيل ذاتي، تنحسب بشاشة منفصلة
+    if (o.teacherPayoutsSettled && o.teacherPayoutsSettled[teacherName]) return false;
+    if (o.teacherPayouts) return !!o.teacherPayouts[teacherName];
+    return true; // لسا ما انحسبت حصص هذا الطلب — نتحقق فعلياً بالأسفل بعد جلب بيانات الكتب
+  });
+  const booksSnap = await db.collection('books').get();
+  const bookInfoById = {};
+  booksSnap.docs.forEach(d => { const b = d.data(); if (b.teacherName) bookInfoById[d.id] = { teacherName: b.teacherName, teacherShare: b.teacherShare || 0 }; });
+  const teacherDocSnap = await db.collection('teachers').where('name','==', teacherName).limit(1).get();
+  const storeDeliveryFee = teacherDocSnap.empty ? 0 : (teacherDocSnap.docs[0].data().storeDeliveryFee || 0);
   const batchUpdates = [];
   let total = 0, count = 0;
-  completedOrders.docs.forEach(d => {
+  relevant.forEach(d => {
     const o = d.data();
-    if (o.teacherPayouts && o.teacherPayouts[teacherName] && !(o.teacherPayoutsSettled && o.teacherPayoutsSettled[teacherName])) {
-      const settled = o.teacherPayoutsSettled || {};
-      settled[teacherName] = true;
-      batchUpdates.push(db.collection('orders').doc(d.id).update({ teacherPayoutsSettled: settled }));
-      total += o.teacherPayouts[teacherName]; count++;
+    let payouts = o.teacherPayouts;
+    let rawAmount = 0;
+    if (payouts && payouts[teacherName] != null) {
+      rawAmount = payouts[teacherName];
+    } else {
+      (o.items||[]).forEach(item => { const b = bookInfoById[item.bookId]; if (b && b.teacherName === teacherName) rawAmount += b.teacherShare * item.qty; });
+      if (rawAmount <= 0) return; // هذا الطلب ما فيه شي لهذا الأستاذ فعلياً
+      payouts = { ...(payouts||{}), [teacherName]: rawAmount };
     }
+    if (rawAmount <= 0) return;
+    // نطرح أجرة التوصيل مرة وحدة لكل طلب (مو لكل قطعة) — هذا مبلغ التوصيل الحقيقي اللي تحمّلته المكتبة
+    const amount = Math.max(0, rawAmount - storeDeliveryFee);
+    const settled = o.teacherPayoutsSettled || {};
+    settled[teacherName] = true;
+    batchUpdates.push(d.ref.update({ teacherPayouts: payouts, teacherPayoutsSettled: settled, teacherPayoutsComputed: true }));
+    total += amount; count++;
   });
   await Promise.all(batchUpdates);
   if (count > 0) {
@@ -7697,17 +7794,30 @@ document.getElementById('copyAllOrdersBtn').onclick = async () => {
   const notCopiedDocs = snap.docs.filter(d => !d.data().processingAt);
   if (notCopiedDocs.length === 0) { alert('لا توجد طلبات جديدة بانتظار النسخ.'); return; }
   const fullText = notCopiedDocs.map(d => buildOrderBlock(d.data())).join('\n\n');
-  // نحدّث حالة الطلبات أول شي، قبل محاولة النسخ نفسها — حتى لو تعلّقت عملية النسخ (نافذة يدوية
-  // بمتصفح مقيّد مثلاً)، الطلبات تتحول لـ"قيد التنفيذ" بأي الأحوال
+  // نبدأ محاولة النسخ فوراً (بأقرب لحظة ممكنة من ضغطة الزر) بالتوازي مع تحديث الحالة —
+  // تأخير النسخ عن لحظة الضغط الفعلية يخلي بعض المتصفحات ترفض النسخ التلقائي بصمت
+  const copyPromise = robustCopy(fullText);
   const now = Date.now();
-  await Promise.all(notCopiedDocs.map(d => db.collection('orders').doc(d.id).update({ processingAt: now, seenByStaff: true })));
+  // نكتب الحالة ووقت النسخ مع بعض دايماً (مو وقت النسخ بس) — حتى ما يبقى الطلب "pending" بقاعدة البيانات
+  // ويظهر كـ"جديد" عند موظف ثاني أو بأي شاشة تعتمد على الحالة (العدّاد، الجرس...)
+  try {
+    await Promise.all(notCopiedDocs.map(d => {
+      const o = d.data();
+      const update = { status: 'processing', processingAt: now, seenByStaff: true };
+      if (o.fulfillment !== 'teacher' && !o.deliveringThresholdAt) update.deliveringThresholdAt = computeDeliveringThresholdAt(o.createdAt);
+      return db.collection('orders').doc(d.id).update(update);
+    }));
+  } catch(e) {
+    console.error(e);
+    alert('⚠️ تم النسخ لكن تعذّر تحديث حالة بعض الطلبات بقاعدة البيانات (تحقق من الاتصال بالإنترنت). اضغط "نسخ" مرة ثانية على الطلبات اللي ما تحوّلت لقيد التنفيذ.');
+  }
   refreshBellBadge();
   const btn = document.getElementById('copyAllOrdersBtn');
   const original = btn.textContent;
   btn.textContent = '✅ تم النسخ — الحالة تتحدّث تلقائياً للزبون';
   setTimeout(() => { btn.textContent = original; }, 2500);
   loadOrdersAdmin();
-  await robustCopy(fullText);
+  await copyPromise;
 };
 
 
@@ -10105,8 +10215,34 @@ function routeFromHash() {
   if (routes[hash]) { routes[hash](); return true; }
   return false;
 }
-window.addEventListener('load', routeFromHash);
-window.addEventListener('hashchange', routeFromHash);
+// تنبيه: نسخة المشرف/الموظف (لوحة التحكم) ما تفتح أي رابط خاص بالزبون بنفسها إطلاقاً — لو انفتح
+// رابط من هذا النوع (رابط مروّج، رابط طلب، رابط كتاب...) بنفس صفحة لوحة التحكم بالغلط،
+// نحوّل المتصفح مباشرة لموقع المكتبة الرئيسي مع نفس الرابط الخاص، ورابط لوحة التحكم يضل زي ما هو.
+const KAWTHAR_MAIN_SITE_URL = 'https://alkwther.github.io/Manast-Alkwther/';
+function isCustomerOnlyHash(hash) {
+  if (!hash) return false;
+  if (hash.startsWith('o=')) return true;
+  if (hash.startsWith('myorders=')) return true;
+  if (hash.startsWith('promoter=')) return true;
+  if (hash === 'quick-order') return true;
+  if (hash.startsWith('book=')) return true;
+  if (hash.startsWith('store=')) return true;
+  if (hash.startsWith('grade=')) return true;
+  if (hash.startsWith('bkgrade=')) return true;
+  if (hash.startsWith('wbfolder=')) return true;
+  if (hash.startsWith('wbitem=')) return true;
+  return ['library','books','textbooks','booklets','notebooks','teacher-stores'].includes(hash);
+}
+function redirectCustomerHashToMainSite() {
+  const hash = (window.location.hash || '').replace('#','');
+  if (isCustomerOnlyHash(hash)) {
+    window.location.href = KAWTHAR_MAIN_SITE_URL + '#' + hash;
+    return true;
+  }
+  return false;
+}
+window.addEventListener('load', redirectCustomerHashToMainSite);
+window.addEventListener('hashchange', redirectCustomerHashToMainSite);
 
 if ('serviceWorker' in navigator) {
   let swRegistration = null;
@@ -10399,8 +10535,10 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
   });
   loadAnnouncements();
   initialAuthCheckPromise.then(() => updatePresenceHeartbeat()); // نسجّل "متصل الآن" أول ما تتضح هوية المستخدم (لو معروفة)
-  // ---- نسخة المشرف/الموظف: تفتح مباشرة على شاشة الإدارة، ما تمر أبداً على الصفحة الرئيسية للزبون ----
-  if (!routeFromHash()) {
+  // ---- نسخة المشرف/الموظف: تفتح مباشرة على شاشة الإدارة دائماً — إلا لو الرابط المفتوح فيه
+  // معطيات خاصة بالزبون (رابط مروّج، رابط طلب معيّن، إلخ)، فحينها نحوّل مباشرة لموقع المكتبة
+  // الرئيسي بدل ما نعرض شاشة الإدارة أصلاً (يمنع حتى "ومضة" ظهورها قبل التحويل)
+  if (!redirectCustomerHashToMainSite()) {
     enterAdminArea();
   }
 })();

@@ -7611,6 +7611,8 @@ async function computeTeacherPayoutsForOrder(order) {
   return teacherPayouts;
 }
 async function setOrderStatus(id, status) {
+  if (status === 'cancelled' && !confirm('هل أنت متأكد من إلغاء هذا الطلب؟')) return;
+  if (status === 'completed' && !confirm('هل أنت متأكد من تأكيد تسليم هذا الطلب؟')) return;
   const update = { status, seenByStaff: true };
   if (status === 'processing') update.processingAt = Date.now();
   if (status === 'delivering') update.deliveringAt = Date.now();
@@ -7632,7 +7634,10 @@ async function setOrderStatus(id, status) {
   }
   await db.collection('orders').doc(id).update(update);
   refreshBellBadge();
-  loadOrdersAdmin();
+  // لو الطلب كان معروض ضمن نتائج بحث، نحدّث نتائج البحث نفسها بدل ما نرجع لقائمة التبويبات
+  // العادية (كان هذا يخلي نتيجة البحث تختفي فجأة بعد أي إجراء، وكأن الزر "ما يشتغل")
+  const searchResultsVisible = !document.getElementById('ordersSearchResults').classList.contains('hidden');
+  if (searchResultsVisible) { performGlobalOrderSearch(); } else { loadOrdersAdmin(); }
   loadTeacherEarningsAdmin();
 }
 // ===================== مزامنة حالات الوسيط للتوصيل =====================
@@ -7719,7 +7724,8 @@ async function convertAllDeliveringToArrived() {
 async function deleteOrder(id) {
   if (!confirm('حذف هذا الطلب بالكامل؟')) return;
   await db.collection('orders').doc(id).delete();
-  loadOrdersAdmin();
+  const searchResultsVisible = !document.getElementById('ordersSearchResults').classList.contains('hidden');
+  if (searchResultsVisible) { performGlobalOrderSearch(); } else { loadOrdersAdmin(); }
   loadTeacherEarningsAdmin();
 }
 
@@ -8514,7 +8520,7 @@ function renderTeacherOrderCard(id, o, useOwnStatus) {
 async function teacherCopyOrder(id) { await copySingleOrder(id); loadTeacherOrders(); }
 async function teacherSetOrderStatus(id, status) { await setOrderStatus(id, status); loadTeacherOrders(); }
 async function teacherCancelOrder(id) {
-  if (!confirm('متأكد تبي تلغي هذا الطلب؟')) return;
+  // التأكيد صار داخل setOrderStatus نفسها، ما نكرره هنا حتى ما يطلع مرتين
   await setOrderStatus(id, 'cancelled');
   loadTeacherOrders();
 }
@@ -8564,8 +8570,22 @@ async function loadTeacherOrdersByPeriod(period) {
       .filter(({o}) => (o.createdAt||0) >= cutoff);
     rows.sort((a,b) => (b.o.createdAt||0) - (a.o.createdAt||0));
     if (rows.length === 0) { list.innerHTML = `<div class="card"><p>لا توجد طلبات خلال ${PERIOD_LABELS[period]}.</p></div>`; return; }
-    list.innerHTML = `<p style="font-weight:bold;color:#10203f;margin-bottom:8px;">📊 ${rows.length} طلب خلال ${PERIOD_LABELS[period]}</p>` +
-      rows.map(({id,o}) => renderTeacherOrderCard(id, o, true)).join('');
+    // نرتّب الطلبات بمجموعات حسب الحالة — كل حالة بقسمها الخاص، حتى ما تختلط ببعض
+    const groups = [
+      { key: 'new', label: '🆕 جديدة', test: o => !o.processingAt && o.status !== 'cancelled' && o.status !== 'completed' },
+      { key: 'processing', label: '⚙️ قيد التنفيذ', test: o => !!o.processingAt && o.status === 'processing' },
+      { key: 'delivering', label: '🚚 قيد التوصيل', test: o => o.status === 'delivering' },
+      { key: 'completed', label: '✅ تم التسليم', test: o => o.status === 'completed' },
+      { key: 'cancelled', label: '❌ ملغاة', test: o => o.status === 'cancelled' },
+    ];
+    let html = `<p style="font-weight:bold;color:#10203f;margin-bottom:8px;">📊 ${rows.length} طلب خلال ${PERIOD_LABELS[period]}</p>`;
+    groups.forEach(g => {
+      const groupRows = rows.filter(({o}) => g.test(o));
+      if (groupRows.length === 0) return;
+      html += `<h4 style="margin:14px 0 8px;color:#10203f;">${g.label} (${groupRows.length})</h4>` +
+        groupRows.map(({id,o}) => renderTeacherOrderCard(id, o, true)).join('');
+    });
+    list.innerHTML = html;
   } catch(e) { console.error(e); list.innerHTML = '<p style="color:#b91c1c;">تعذّر التحميل.</p>'; }
 }
 document.getElementById('tchOrdersPeriodDay').onclick = () => loadTeacherOrdersByPeriod('day');

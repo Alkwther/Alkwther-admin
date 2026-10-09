@@ -3884,6 +3884,23 @@ document.getElementById('confirmOrderBtn').onclick = async () => {
       newOrderData.platformOwedSettled = false;
     }
     await db.collection('orders').add(newOrderData);
+    // ننقّص العدد المتوفر لأي ملزمة متابَع عليها مخزون — ما يأثر على طلب الزبون حتى لو صار خطأ هنا
+    try {
+      const bookIds = [...new Set(items.filter(it => it.bookId).map(it => it.bookId))];
+      if (bookIds.length) {
+        const bookDocs = await Promise.all(bookIds.map(bid => db.collection('books').doc(bid).get()));
+        const stockUpdates = [];
+        bookDocs.forEach(bd => {
+          if (!bd.exists) return;
+          const b = bd.data();
+          if (b.stock == null) return;
+          const matchingItems = items.filter(it => it.bookId === bd.id);
+          const qty = matchingItems.reduce((s,it) => s + (it.qty||0), 0);
+          stockUpdates.push(bd.ref.update({ stock: Math.max(0, b.stock - qty) }));
+        });
+        await Promise.all(stockUpdates);
+      }
+    } catch(e) { console.error('stock decrement failed', e); }
     saveDeliveryInfo({ name, province, district, landmark, phone, altPhone });
     cart = {}; saveCartToStorage();
     setMsg('checkoutMsg', navigator.onLine === false
@@ -7215,27 +7232,63 @@ async function loadAdminTeacherStores() {
       }
     });
 
-    list.innerHTML = stores.map(t => {
+    // كتب/ملازم كل أستاذ، مرتبة حسب الاسم، لعرضها بقسم المخزون داخل تفاصيله
+    const booksByTeacher = {};
+    booksSnap.docs.forEach(d => {
+      const b = d.data();
+      if (!b.teacherName) return;
+      if (!booksByTeacher[b.teacherName]) booksByTeacher[b.teacherName] = [];
+      booksByTeacher[b.teacherName].push({ id: d.id, ...b });
+    });
+
+    // القائمة مرتبة أبجدياً حسب اسم الأستاذ، وتعرض الاسم فقط — التفاصيل تنفتح بالضغط عليه
+    const sortedStores = [...stores].sort((a,b) => a.name.localeCompare(b.name, 'ar'));
+    list.innerHTML = sortedStores.map(t => {
       const so = selfOwed[t.name] || 0, sc = selfCount[t.name] || 0;
       const lo = libOwed[t.name] || 0, lc = libCount[t.name] || 0;
       const tc = todayCount[t.name] || 0;
+      const myBooks = (booksByTeacher[t.name] || []).sort((a,b) => (a.title||'').localeCompare(b.title||'', 'ar'));
+      const stockRowsHtml = myBooks.length ? myBooks.map(b => `
+        <div style="display:flex;align-items:center;gap:8px;background:#f6f7fb;border-radius:8px;padding:8px;margin-top:6px;">
+          <div style="flex:1;font-size:13px;">${b.title}</div>
+          <input id="stockInput-${b.id}" type="number" min="0" value="${b.stock != null ? b.stock : ''}" placeholder="بدون تتبّع" style="width:80px;margin-bottom:0;">
+          <button class="small-btn" onclick="saveBookStock('${b.id}')">💾 حفظ</button>
+        </div>`).join('') : '<p style="font-size:13px;color:#8a90a3;margin-top:6px;">ما عنده ملازم مضافة بعد.</p>';
       return `<div class="admin-list-item" style="flex-direction:column;align-items:stretch;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-          <div><b>${t.name}</b><br><span style="color:#8a90a3;font-size:13px;">${t.storeDescription || 'بدون وصف'}</span><br><span style="color:#0e8fa8;font-size:13px;font-weight:bold;">📅 طلبات اليوم: ${tc}</span></div>
-          <button class="small-btn" onclick="toggleTeacherStoreEnabled('${t.id}', ${!t.storeEnabled})" style="${t.storeEnabled ? 'background:#16a34a;color:#fff;' : 'background:#000;color:#fff;'}">${t.storeEnabled ? '🟢 مفعّل (إيقاف)' : '🔴 موقوف (تشغيل)'}</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleTeacherStoreDetails('${t.id}')">
+          <b>${t.name} <span style="font-size:12px;color:#0e8fa8;font-weight:normal;">(اضغط لعرض/إخفاء التفاصيل ▾)</span></b>
+          <span style="font-size:11px;padding:3px 8px;border-radius:8px;${t.storeEnabled ? 'background:#16a34a;color:#fff;' : 'background:#000;color:#fff;'}">${t.storeEnabled ? '🟢 مفعّل' : '🔴 موقوف'}</span>
         </div>
-        <button class="small-btn" style="margin-top:8px;${so>0?'background:#b8903c;color:#fff;':'background:#ecfdf3;'}" onclick="toggleTeacherStoreSettlement('${t.name.replace(/'/g,"\\'")}')">
-          🚚 توصيل ذاتي — مستحق للمكتبة: ${so} د.ع (${sc} طلب) ${so>0 ? '— اضغط لتأكيد التحاسب' : '— لا يوجد مستحق'}
-        </button>
-        <button class="small-btn" style="margin-top:6px;${lo>0?'background:#0e8fa8;color:#fff;':'background:#ecfdf3;'}" onclick="settleTeacherEarnings('${t.name.replace(/'/g,"\\'")}')">
-          📦 توصيل المكتبة — مستحق للأستاذ: ${lo} د.ع (${lc} طلب) ${lo>0 ? '— اضغط لتأكيد التحاسب' : '— لا يوجد مستحق'}
-        </button>
-        <button class="small-btn" style="margin-top:6px;" onclick="teacherOrdersContextName='${t.name.replace(/'/g,"\\'")}'; show('screen-teacher-orders'); switchTeacherOrdersTab('new'); loadTeacherOrdersByPeriod('month');">📊 سجل طلبات هذا المتجر (اليوم/الأسبوع/الشهر/السنة)</button>
-        <button class="small-btn" style="margin-top:6px;" onclick="toggleSettlementHistory('${t.id}','${t.name.replace(/'/g,"\\'")}')">📜 سجل التحاسب السابق</button>
-        <div id="settlementHistory-${t.id}" class="hidden" style="margin-top:8px;"></div>
+        <div id="teacherStoreDetails-${t.id}" class="hidden" style="margin-top:8px;">
+          <p style="color:#8a90a3;font-size:13px;margin:0 0 4px;">${t.storeDescription || 'بدون وصف'}</p>
+          <p style="color:#0e8fa8;font-size:13px;font-weight:bold;margin:0 0 8px;">📅 طلبات اليوم: ${tc}</p>
+          <button class="small-btn" onclick="toggleTeacherStoreEnabled('${t.id}', ${!t.storeEnabled})" style="${t.storeEnabled ? 'background:#16a34a;color:#fff;' : 'background:#000;color:#fff;'}">${t.storeEnabled ? '🟢 مفعّل (إيقاف)' : '🔴 موقوف (تشغيل)'}</button>
+          <button class="small-btn" style="margin-top:8px;${so>0?'background:#b8903c;color:#fff;':'background:#ecfdf3;'}" onclick="toggleTeacherStoreSettlement('${t.name.replace(/'/g,"\\'")}')">
+            🚚 توصيل ذاتي — مستحق للمكتبة: ${so} د.ع (${sc} طلب) ${so>0 ? '— اضغط لتأكيد التحاسب' : '— لا يوجد مستحق'}
+          </button>
+          <button class="small-btn" style="margin-top:6px;${lo>0?'background:#0e8fa8;color:#fff;':'background:#ecfdf3;'}" onclick="settleTeacherEarnings('${t.name.replace(/'/g,"\\'")}')">
+            📦 توصيل المكتبة — مستحق للأستاذ: ${lo} د.ع (${lc} طلب) ${lo>0 ? '— اضغط لتأكيد التحاسب' : '— لا يوجد مستحق'}
+          </button>
+          <button class="small-btn" style="margin-top:6px;" onclick="teacherOrdersContextName='${t.name.replace(/'/g,"\\'")}'; show('screen-teacher-orders'); switchTeacherOrdersTab('new'); loadTeacherOrdersByPeriod('month');">📊 سجل طلبات هذا المتجر (اليوم/الأسبوع/الشهر/السنة)</button>
+          <button class="small-btn" style="margin-top:6px;" onclick="toggleSettlementHistory('${t.id}','${t.name.replace(/'/g,"\\'")}')">📜 سجل التحاسب السابق</button>
+          <div id="settlementHistory-${t.id}" class="hidden" style="margin-top:8px;"></div>
+          <h4 style="margin:14px 0 2px;color:#10203f;">📦 عدد الملازم المتوفرة</h4>
+          <p style="font-size:12px;color:#8a90a3;margin:0 0 4px;">اتركه فاضي = بدون تتبّع مخزون (دائماً متوفر). حدّد رقم = ينقص تلقائياً عند الشراء ويرجع عند الإلغاء.</p>
+          ${stockRowsHtml}
+        </div>
       </div>`;
     }).join('');
   } catch(e) { console.error(e); list.innerHTML = '<p style="color:#b91c1c;">تعذّر التحميل.</p>'; }
+}
+function toggleTeacherStoreDetails(id) {
+  document.getElementById(`teacherStoreDetails-${id}`).classList.toggle('hidden');
+}
+async function saveBookStock(bookId) {
+  const input = document.getElementById(`stockInput-${bookId}`);
+  const raw = input.value.trim();
+  const stock = raw === '' ? firebase.firestore.FieldValue.delete() : Math.max(0, +raw);
+  await db.collection('books').doc(bookId).update({ stock });
+  alert(raw === '' ? 'تم إلغاء تتبّع المخزون لهذي الملزمة ✅' : `تم حفظ العدد المتوفر: ${stock} ✅`);
 }
 async function toggleTeacherStoreEnabled(teacherId, newValue) {
   await db.collection('teachers').doc(teacherId).update({ storeEnabled: newValue });
@@ -7610,6 +7663,25 @@ async function computeTeacherPayoutsForOrder(order) {
   }
   return teacherPayouts;
 }
+// يرجّع العدد المتوفر لأي ملزمة متابَع عليها مخزون (b.stock موجود) — ما يأثر إطلاقاً على
+// ملازم ما حدّد لها المشرف/الموظف عدد متوفر أصلاً
+async function restoreStockForItems(items) {
+  try {
+    const bookIds = [...new Set((items||[]).filter(it => it.bookId).map(it => it.bookId))];
+    if (bookIds.length === 0) return;
+    const bookDocs = await Promise.all(bookIds.map(bid => db.collection('books').doc(bid).get()));
+    const updates = [];
+    bookDocs.forEach(bd => {
+      if (!bd.exists) return;
+      const b = bd.data();
+      if (b.stock == null) return;
+      const matchingItems = items.filter(it => it.bookId === bd.id);
+      const qty = matchingItems.reduce((s,it) => s + (it.qty||0), 0);
+      updates.push(bd.ref.update({ stock: b.stock + qty }));
+    });
+    await Promise.all(updates);
+  } catch(e) { console.error('restoreStockForItems failed', e); }
+}
 async function setOrderStatus(id, status) {
   if (status === 'cancelled' && !confirm('هل أنت متأكد من إلغاء هذا الطلب؟')) return;
   if (status === 'completed' && !confirm('هل أنت متأكد من تأكيد تسليم هذا الطلب؟')) return;
@@ -7630,6 +7702,14 @@ async function setOrderStatus(id, status) {
       update.teacherPayouts = await computeTeacherPayoutsForOrder(order);
       update.teacherPayoutsSettled = {};
       update.teacherPayoutsComputed = true;
+    }
+  }
+  if (status === 'cancelled') {
+    const orderDoc = await db.collection('orders').doc(id).get();
+    const order = orderDoc.data();
+    if (order && !order.stockRestored) {
+      await restoreStockForItems(order.items);
+      update.stockRestored = true;
     }
   }
   await db.collection('orders').doc(id).update(update);
@@ -9062,6 +9142,7 @@ async function openTeacherBooksLibrary() {
         </div>
       </div>
       <p>السعر بالمكتبة: <b>${b.price} د.ع</b> — حصتك من كل نسخة: <b style="color:#b8903c;">${b.teacherShare||0} د.ع</b></p>
+      ${b.stock != null ? `<p style="margin:0 0 8px;font-weight:bold;color:${b.stock > 0 ? '#15803d' : '#b91c1c'};">📦 العدد المتوفر بالمكتبة: ${b.stock}${b.stock === 0 ? ' — نفذت الكمية' : ''}</p>` : ''}
       <div id="editTeacherBookletPanel-${d.id}" class="hidden" style="background:#f6f7fb;border-radius:10px;padding:10px;margin-bottom:10px;">
         <label>اسم الملزمة</label>
         <input id="editTBookletTitle-${d.id}" value="${b.title.replace(/"/g,'&quot;')}">

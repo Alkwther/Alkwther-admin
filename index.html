@@ -845,6 +845,8 @@ main{max-width:560px;margin:0 auto;padding:20px 14px 100px;}#screen-textbooks /*
   .kh-si-upload { cursor:pointer; display:inline-block; }
   .kh-si-hint { font-size:12px; color:#8a90a3; }
   .admin-list-item .kh-store-img { width:52px; height:52px; border-radius:14px; }
+  .kh-store-img.kh-store-photo { border:2.5px solid #e2b955; background:#fff; }
+  .kh-store-img.kh-store-photo img { object-position:center top; }
 </style>
 </head>
 <body>
@@ -2876,7 +2878,7 @@ main{max-width:560px;margin:0 auto;padding:20px 14px 100px;}#screen-textbooks /*
         <div class="kh-si-actions">
           <label class="small-btn kh-si-upload">📷 اختيار صورة<input type="file" id="tchStoreImageInput" accept="image/*" hidden></label>
           <button type="button" class="small-btn hidden" id="tchStoreImageRemove">🗑️ إزالة الصورة</button>
-          <span class="kh-si-hint">إذا ما اخترت صورة، يظهر رسم احترافي جاهز لمتجرك.</span>
+          <span class="kh-si-hint">إذا ما اخترت صورة، تظهر صورتك الشخصية، وإذا ما عندك صورة يظهر رسم احترافي جاهز.</span>
         </div>
       </div>
       <label>أجور التوصيل الثابتة لمتجرك (دينار) — تُحسب مرة وحدة فقط مهما زاد عدد القطع بالطلب</label>
@@ -3153,23 +3155,61 @@ function show(id) {
     if (id === 'screen-checkout') { const b = document.getElementById('cartBar'); if (b) b.remove(); }
     else renderCartBar();
   }
-  // دعم زر الرجوع بالهاتف: نسجّل كل تنقّل بسجل المتصفح حتى يقدر المستخدم يرجع بزر جهازه
-  if (!isNavigatingViaBackButton && id !== 'screen-welcome') {
-    history.pushState({ screen: id }, '', '');
-  }
+  // زر الرجوع بالهاتف: نسجّل "من وين دخل" مو كل الصفحات اللي مرّ بيها
+  if (!isNavigatingViaBackButton) khNavRecord(id);
   isNavigatingViaBackButton = false;
 }
-window.addEventListener('popstate', (e) => {
-  isNavigatingViaBackButton = true;
-  if (e.state && e.state.screen) {
-    show(e.state.screen);
-  } else if (e.state && 'adminSection' in e.state) {
-    if (e.state.adminSection) openAdminSection(e.state.adminSection);
-    else showAdminMenu();
-  } else {
-    show('screen-welcome');
+
+/* ===== زر الرجوع بالهاتف (نفس منطق برنامج المكتبة) =====
+   - القائمة الرئيسية للإدارة هي الأساس: منها الرجوع يطلّع من البرنامج.
+   - الأقسام الرئيسية (المنصة، المكتبة، الموظفين، خدمة العملاء، الإعلانات) ترجع للقائمة مباشرة.
+   - القسم الفرعي يرجع للقسم اللي دخل منه. */
+const KH_ROOTS = ['screen-admin', 'screen-teacher-dashboard', 'screen-home', 'screen-welcome'];
+const KH_ADMIN_HUBS = ['edu-platform-hub', 'library-hub', 'team', 'support', 'announcements', 'notification-center'];
+let khNavStack = [];
+let khTrapActive = false;
+let khIgnorePop = 0;
+function khSyncTrap() {
+  const needTrap = khNavStack.length > 1;
+  if (needTrap && !khTrapActive) {
+    try { history.pushState({ khTrap: true }, '', location.pathname + location.search); khTrapActive = true; } catch (e) { console.error(e); }
+  } else if (!needTrap && khTrapActive) {
+    khTrapActive = false; khIgnorePop++;
+    try { history.back(); } catch (e) { khIgnorePop--; }
   }
+}
+function khNavRecord(id) {
+  if (!id) return;
+  if (KH_ROOTS.includes(id)) khNavStack = [id];
+  else if (id.startsWith('admin:') && KH_ADMIN_HUBS.includes(id.slice(6))) khNavStack = ['screen-admin', id];
+  else {
+    const at = khNavStack.indexOf(id);
+    if (at >= 0) khNavStack = khNavStack.slice(0, at + 1);
+    else khNavStack.push(id);
+  }
+  khSyncTrap();
+}
+function khNavGo(entry) {
+  if (entry.startsWith('admin:')) {
+    if (document.getElementById('screen-admin').classList.contains('hidden')) { isNavigatingViaBackButton = true; show('screen-admin'); }
+    isNavigatingViaBackButton = true; openAdminSection(entry.slice(6));
+  } else if (entry === 'screen-admin') {
+    isNavigatingViaBackButton = true; show('screen-admin');
+    isNavigatingViaBackButton = true; showAdminMenu();
+  } else { isNavigatingViaBackButton = true; show(entry); }
+  isNavigatingViaBackButton = false;
+}
+window.addEventListener('popstate', () => {
+  if (khIgnorePop > 0) { khIgnorePop--; return; }
+  khTrapActive = false;
+  if (khNavStack.length > 1) {
+    khNavStack.pop();
+    khNavGo(khNavStack[khNavStack.length - 1]);
+    khSyncTrap();
+  }
+  // بالقائمة الرئيسية: الرجوع الجاي يطلّع من البرنامج
 });
+try { history.replaceState({ khRoot: true }, '', location.pathname + location.search + location.hash); } catch (e) {}
 function setMsg(el, text, ok) {
   document.getElementById(el).innerHTML = `<div class="msg ${ok?'ok':'err'}">${text}</div>`;
 }
@@ -4478,17 +4518,13 @@ function enterAdminPanel() {
 function showAdminMenu() {
   document.getElementById('adminMenu').classList.remove('hidden');
   document.querySelectorAll('.admin-section').forEach(s => s.classList.add('hidden'));
-  if (!isNavigatingViaBackButton) {
-    history.pushState({ adminSection: null }, '', '');
-  }
+  if (!isNavigatingViaBackButton) khNavRecord('screen-admin');
   isNavigatingViaBackButton = false;
 }
 function openAdminSection(section) {
   document.getElementById('adminMenu').classList.add('hidden');
   document.querySelectorAll('.admin-section').forEach(s => s.classList.toggle('hidden', s.dataset.section !== section));
-  if (!isNavigatingViaBackButton) {
-    history.pushState({ adminSection: section }, '', '');
-  }
+  if (!isNavigatingViaBackButton) khNavRecord('admin:' + section);
   isNavigatingViaBackButton = false;
 }
 
@@ -7349,9 +7385,10 @@ function tsIllustration(name) {
 }
 // صورة المتجر من الإدارة — نفس الحقل (storeImage) اللي يشوفه الزبون ببرنامج المكتبة
 function khAdminStoreTileHtml(t) {
-  return t.storeImage
-    ? `<div class="kh-store-img"><img src="${t.storeImage}" alt=""></div>`
-    : `<div class="kh-store-img kh-store-ill">${tsIllustration(t.name)}</div>`;
+  // نفس ترتيب برنامج المكتبة: صورة المتجر ← صورة الأستاذ ← الرسم الجاهز
+  if (t.storeImage) return `<div class="kh-store-img"><img src="${t.storeImage}" alt=""></div>`;
+  if (t.photo) return `<div class="kh-store-img kh-store-photo"><img src="${t.photo}" alt=""></div>`;
+  return `<div class="kh-store-img kh-store-ill">${tsIllustration(t.name)}</div>`;
 }
 function khPickAdminStoreImage(teacherId) {
   const input = document.createElement('input');
@@ -9025,7 +9062,8 @@ function tchRenderStoreImagePreview(src) {
   const box = document.getElementById('tchStoreImagePreview');
   const rm = document.getElementById('tchStoreImageRemove');
   box.innerHTML = '';
-  if (src) { const img = document.createElement('img'); img.src = src; img.alt = ''; box.appendChild(img); }
+  const shown = src || (currentTeacher && currentTeacher.photo) || '';
+  if (shown) { const img = document.createElement('img'); img.src = shown; img.alt = ''; box.appendChild(img); }
   else box.innerHTML = tsIllustration(currentTeacher && currentTeacher.name || '');
   rm.classList.toggle('hidden', !src);
 }

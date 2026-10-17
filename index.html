@@ -2007,6 +2007,11 @@ main{max-width:560px;margin:0 auto;padding:20px 14px 100px;}#screen-textbooks /*
           <div class="admin-menu-text"><b>متاجر الأساتذة</b><span>تشغيل/إيقاف كل متجر، والمبلغ المستحق للمكتبة</span></div>
           <div class="admin-menu-arrow"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></div>
         </div>
+        <div class="admin-menu-item" data-section="library-maramir">
+          <div class="admin-menu-icon"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M6 38c7-4 14-5 21-2v22c-7-3-14-2-21 2z" fill="#fff"/><path d="M48 38c-7-4-14-5-21-2v22c7-3 14-2 21 2z" fill="#fff4d6"/><path d="M6 60c7-4 14-5 21-2 7-3 14-2 21 2v3c-7-4-14-5-21-2-7-3-14-2-21 2z" fill="url(#khgGold)"/><rect x="24" y="6" width="36" height="26" rx="6" fill="#2a4a8a" stroke="url(#khgGold)" stroke-width="2.2"/><path d="M38 13v12l10-6z" fill="url(#khgGold)"/><circle cx="14" cy="18" r="8" fill="url(#khgGold)"/><path d="M11 18l2.5 2.5 5-5.5" stroke="#0b1733" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="admin-menu-text"><b>متجر مرامير</b><span>اختيار الأستاذة، والفيديوهات (يوتيوب) بأسمائها وصورها</span></div>
+          <div class="admin-menu-arrow"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></div>
+        </div>
         <div class="admin-menu-item" data-section="library-external-orders">
           <div class="admin-menu-icon"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M4 38l8-18h40l8 18v16a4 4 0 01-4 4H8a4 4 0 01-4-4z" fill="url(#khgGold)"/><path d="M4 38h16l3 6h18l3-6h16" fill="none" stroke="#0b1733" stroke-width="2.4" stroke-linejoin="round"/><path d="M32 4v22" stroke="#fff4d6" stroke-width="4" stroke-linecap="round"/><path d="M24 18l8 9 8-9" fill="none" stroke="#fff4d6" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
           <div class="admin-menu-text"><b>طلبات خارجية</b><span>واتساب / فيسبوك / إنستغرام — أضف الطلب وابعث رابطه للزبون</span></div>
@@ -2348,6 +2353,44 @@ main{max-width:560px;margin:0 auto;padding:20px 14px 100px;}#screen-textbooks /*
         </div>
       </div>
 
+      <div class="admin-section hidden" data-section="library-maramir">
+        <button class="btn secondary admin-back-btn" data-back-to="library-hub">← رجوع للمكتبة</button>
+        <div class="card">
+          <h3>⚙️ إعدادات متجر مرامير</h3>
+          <label>إظهار البطاقة بالصفحة الرئيسية للمكتبة</label>
+          <select id="amrEnabled"><option value="1">🟢 ظاهرة</option><option value="0">🔴 مخفية</option></select>
+          <label>اسم المتجر (يظهر للزبون)</label>
+          <input id="amrTitle" maxlength="40" placeholder="متجر مرامير">
+          <label>الأستاذة صاحبة المتجر (ملازمها وفيديوهاتها تظهر بالمتجر)</label>
+          <select id="amrTeacher"><option value="">جاري التحميل...</option></select>
+          <button class="btn" onclick="khAmrSaveSettings()">💾 حفظ الإعدادات</button>
+          <div id="amrMsg"></div>
+        </div>
+        <div class="card">
+          <h3 id="amrFormTitle">🎬 إضافة فيديو</h3>
+          <label>اسم الفيديو</label>
+          <input id="amrVTitle" maxlength="90" placeholder="مثال: شرح الفصل الأول — القواعد">
+          <label>رابط يوتيوب</label>
+          <input id="amrVUrl" type="url" placeholder="https://youtube.com/...">
+          <label>المادة / الصف (اختياري)</label>
+          <input id="amrVSubject" maxlength="40" placeholder="مثال: السادس الإعدادي">
+          <label>صورة الفيديو</label>
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+            <div id="amrVThumb" style="width:150px;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#eef1f8;display:flex;align-items:center;justify-content:center;font-size:11px;color:#8a90a3;flex-shrink:0;">تنسحب من يوتيوب</div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <label class="small-btn" style="cursor:pointer;">📷 صورة خاصة<input type="file" id="amrVThumbInput" accept="image/*" hidden></label>
+              <button type="button" class="small-btn hidden" id="amrVThumbRemove">↩️ صورة يوتيوب</button>
+            </div>
+          </div>
+          <button class="btn" id="amrVSaveBtn" onclick="khAmrSaveVideo()">➕ إضافة الفيديو</button>
+          <button class="btn secondary hidden" id="amrVCancel" onclick="khAmrResetForm()">إلغاء التعديل</button>
+          <div id="amrVMsg"></div>
+        </div>
+        <div class="card">
+          <h3>📋 فيديوهات المتجر <span id="amrVCount" style="font-size:13px;color:#8a90a3;"></span></h3>
+          <div id="amrVList"><p style="color:#8a90a3;">اختر الأستاذة أولاً.</p></div>
+        </div>
+      </div>
       <div class="admin-section hidden" data-section="library-teacher-stores">
         <button class="btn secondary admin-back-btn" data-back-to="library-hub">← رجوع للمكتبة</button>
         <div class="card"><h3>🏪 متاجر الأساتذة</h3><p>شغّل أو أوقف أي متجر، وتابع المبلغ المستحق للمكتبة من كل أستاذ (عمولة المنصة على طلبات توصيله الذاتي)</p></div>
@@ -6768,6 +6811,138 @@ document.getElementById('customersSearchInput').addEventListener('input', (e) =>
 });
 document.querySelector('.admin-menu-item[data-section="library-customers"]').addEventListener('click', () => loadLibraryCustomers());
 document.querySelector('.admin-menu-item[data-section="library-teacher-stores"]').addEventListener('click', () => loadAdminTeacherStores());
+// ===================== متجر مرامير (الإدارة) =====================
+const AMR_DEFAULT = { teacherName: 'مريم فاضل عبد الأمير', title: 'متجر مرامير', enabled: true };
+let amrSettings = { ...AMR_DEFAULT };
+let amrTeacher = null; // { id, name, videos }
+let amrEditingId = null, amrThumbDraft = undefined;
+function amrYtId(url) { const m = String(url || '').match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/|\/live\/|\/v\/)([\w-]{11})/); return m ? m[1] : null; }
+function amrThumb(v) { return v.thumb || (amrYtId(v.url) ? `https://i.ytimg.com/vi/${amrYtId(v.url)}/hqdefault.jpg` : ''); }
+async function khLoadAdminMaramir() {
+  try { const d = await db.collection('settings').doc('maramir').get(); if (d.exists) amrSettings = { ...AMR_DEFAULT, ...d.data() }; } catch (e) { console.error(e); }
+  document.getElementById('amrEnabled').value = amrSettings.enabled === false ? '0' : '1';
+  document.getElementById('amrTitle').value = amrSettings.title || '';
+  const sel = document.getElementById('amrTeacher');
+  try {
+    const snap = await db.collection('teachers').get();
+    const names = snap.docs.map(d => d.data().name).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ar'));
+    sel.innerHTML = names.map(n => `<option value="${n.replace(/"/g, '&quot;')}">${n}</option>`).join('');
+    if (amrSettings.teacherName && !names.includes(amrSettings.teacherName)) sel.insertAdjacentHTML('afterbegin', `<option value="${amrSettings.teacherName}">${amrSettings.teacherName} (غير موجود بالأساتذة)</option>`);
+    sel.value = amrSettings.teacherName || '';
+  } catch (e) { console.error(e); sel.innerHTML = '<option value="">تعذّر تحميل الأساتذة</option>'; }
+  sel.onchange = () => khAmrLoadTeacher(sel.value);
+  khAmrResetForm();
+  khAmrLoadTeacher(sel.value);
+}
+async function khAmrLoadTeacher(name) {
+  amrTeacher = null;
+  const list = document.getElementById('amrVList');
+  if (!name) { list.innerHTML = '<p style="color:#8a90a3;">اختر الأستاذة أولاً.</p>'; return; }
+  list.innerHTML = '<p class="loader">جاري التحميل...</p>';
+  try {
+    const snap = await db.collection('teachers').where('name', '==', name).limit(1).get();
+    if (snap.empty) { list.innerHTML = '<p style="color:#b91c1c;">هذي الأستاذة ما عندها حساب، فما تگدر تضيف فيديوهات.</p>'; return; }
+    const d = snap.docs[0];
+    amrTeacher = { id: d.id, name, videos: Array.isArray(d.data().videos) ? d.data().videos : [] };
+    khAmrRenderList();
+  } catch (e) { console.error(e); list.innerHTML = '<p style="color:#b91c1c;">تعذّر التحميل.</p>'; }
+}
+async function khAmrSaveSettings() {
+  const v = { enabled: document.getElementById('amrEnabled').value === '1', title: document.getElementById('amrTitle').value.trim() || AMR_DEFAULT.title, teacherName: document.getElementById('amrTeacher').value, updatedAt: Date.now() };
+  if (!v.teacherName) { setMsg('amrMsg', 'اختر الأستاذة', false); return; }
+  try { await db.collection('settings').doc('maramir').set(v); amrSettings = v; setMsg('amrMsg', '✅ تم الحفظ — يظهر بالمكتبة هسه', true); }
+  catch (e) { console.error(e); setMsg('amrMsg', 'تعذّر الحفظ: ' + (e.message || ''), false); }
+}
+function khAmrRenderThumb() {
+  const box = document.getElementById('amrVThumb');
+  const editing = amrEditingId && amrTeacher ? amrTeacher.videos.find(v => v.id === amrEditingId) : null;
+  const custom = amrThumbDraft !== undefined ? amrThumbDraft : (editing ? editing.thumb || '' : '');
+  const id = amrYtId(document.getElementById('amrVUrl').value);
+  const src = custom || (id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : '');
+  box.innerHTML = src ? `<img src="${src}" style="width:100%;height:100%;object-fit:cover;">` : 'تنسحب من يوتيوب';
+  document.getElementById('amrVThumbRemove').classList.toggle('hidden', !custom);
+}
+function khAmrResetForm() {
+  amrEditingId = null; amrThumbDraft = undefined;
+  ['amrVTitle', 'amrVUrl', 'amrVSubject'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('amrFormTitle').textContent = '🎬 إضافة فيديو';
+  document.getElementById('amrVSaveBtn').textContent = '➕ إضافة الفيديو';
+  document.getElementById('amrVCancel').classList.add('hidden');
+  khAmrRenderThumb();
+}
+function khAmrRenderList() {
+  const list = document.getElementById('amrVList');
+  const vids = amrTeacher ? amrTeacher.videos : [];
+  document.getElementById('amrVCount').textContent = vids.length ? `(${vids.length})` : '';
+  if (!vids.length) { list.innerHTML = '<p style="color:#8a90a3;">ما فيه فيديوهات بعد.</p>'; return; }
+  list.innerHTML = '';
+  vids.forEach((v, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #eef1f7;';
+    row.innerHTML = `<img src="${amrThumb(v)}" style="width:96px;aspect-ratio:16/9;object-fit:cover;border-radius:10px;flex-shrink:0;background:#eef1f8;"><div style="flex:1;min-width:0;"><b style="display:block;font-size:14px;"></b><span style="display:block;font-size:12px;color:#b8862a;"></span></div><div style="display:flex;flex-wrap:wrap;gap:4px;max-width:120px;justify-content:flex-end;"></div>`;
+    row.querySelector('b').textContent = v.title; row.querySelector('span').textContent = v.subject || '';
+    const acts = row.lastElementChild;
+    const mk = (label, fn, dis) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'small-btn'; b.style.cssText = 'padding:4px 7px;margin:0;'; b.textContent = label; b.disabled = !!dis; b.onclick = fn; acts.appendChild(b); };
+    mk('▶️', () => window.open(v.url, '_blank'));
+    mk('⬆️', () => khAmrMove(i, -1), i === 0);
+    mk('⬇️', () => khAmrMove(i, 1), i === vids.length - 1);
+    mk('✏️', () => khAmrEdit(v.id));
+    mk('🗑️', () => khAmrDelete(v.id));
+    list.appendChild(row);
+  });
+}
+async function khAmrPersist(vids, msg) {
+  await db.collection('teachers').doc(amrTeacher.id).update({ videos: vids });
+  amrTeacher.videos = vids; khAmrRenderList();
+  if (msg) setMsg('amrVMsg', msg, true);
+}
+async function khAmrSaveVideo() {
+  if (!amrTeacher) { setMsg('amrVMsg', 'اختر الأستاذة أولاً', false); return; }
+  const title = document.getElementById('amrVTitle').value.trim();
+  const url = document.getElementById('amrVUrl').value.trim();
+  const subject = document.getElementById('amrVSubject').value.trim();
+  const vid = amrYtId(url);
+  if (!title) { setMsg('amrVMsg', 'اكتب اسم الفيديو', false); return; }
+  if (!vid) { setMsg('amrVMsg', 'رابط يوتيوب غير صحيح', false); return; }
+  const vids = amrTeacher.videos.slice();
+  try {
+    if (amrEditingId) {
+      const v = vids.find(x => x.id === amrEditingId);
+      if (v) { v.title = title; v.url = url; v.vid = vid; v.subject = subject; if (amrThumbDraft !== undefined) v.thumb = amrThumbDraft; }
+      await khAmrPersist(vids, '✅ تم التعديل');
+    } else {
+      vids.unshift({ id: 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title, url, vid, subject, thumb: amrThumbDraft || '', createdAt: Date.now() });
+      await khAmrPersist(vids, '✅ تمت إضافة الفيديو');
+    }
+    khAmrResetForm();
+  } catch (e) { console.error(e); setMsg('amrVMsg', 'تعذّر الحفظ: ' + (e.message || ''), false); }
+}
+function khAmrEdit(id) {
+  const v = amrTeacher.videos.find(x => x.id === id); if (!v) return;
+  amrEditingId = id; amrThumbDraft = undefined;
+  document.getElementById('amrVTitle').value = v.title; document.getElementById('amrVUrl').value = v.url; document.getElementById('amrVSubject').value = v.subject || '';
+  document.getElementById('amrFormTitle').textContent = '✏️ تعديل الفيديو';
+  document.getElementById('amrVSaveBtn').textContent = '💾 حفظ التعديل';
+  document.getElementById('amrVCancel').classList.remove('hidden');
+  khAmrRenderThumb();
+}
+async function khAmrMove(i, d) {
+  const vids = amrTeacher.videos.slice(); const j = i + d; if (j < 0 || j >= vids.length) return;
+  [vids[i], vids[j]] = [vids[j], vids[i]];
+  try { await khAmrPersist(vids); } catch (e) { console.error(e); }
+}
+async function khAmrDelete(id) {
+  if (!confirm('حذف هذا الفيديو؟')) return;
+  try { await khAmrPersist(amrTeacher.videos.filter(v => v.id !== id), '🗑️ تم الحذف'); if (amrEditingId === id) khAmrResetForm(); } catch (e) { console.error(e); }
+}
+document.getElementById('amrVUrl').addEventListener('input', khAmrRenderThumb);
+document.getElementById('amrVThumbInput').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { amrThumbDraft = await uploadImageFileBudgeted(f, 480, 0.75, 22000); khAmrRenderThumb(); } catch (err) { console.error(err); }
+});
+document.getElementById('amrVThumbRemove').addEventListener('click', () => { amrThumbDraft = ''; khAmrRenderThumb(); });
+document.querySelector('.admin-menu-item[data-section="library-maramir"]').addEventListener('click', () => khLoadAdminMaramir());
+
 document.querySelector('.admin-menu-item[data-section="library-external-orders"]').addEventListener('click', () => loadExtOrdersList());
 document.querySelector('.admin-menu-item[data-section="library-promoter-orders"]').addEventListener('click', () => { loadPoOrdersList(); loadPromoterNamesDatalist(); });
 

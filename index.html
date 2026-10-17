@@ -2918,6 +2918,8 @@ main{max-width:560px;margin:0 auto;padding:20px 14px 100px;}#screen-textbooks /*
           <span class="kh-si-hint">إذا ما اخترت صورة، تظهر صورتك الشخصية، وإذا ما عندك صورة يظهر رسم احترافي جاهز.</span>
         </div>
       </div>
+      <label>🎬 فيديو تعريفي لمتجرك (رابط يوتيوب — اختياري)</label>
+      <input id="tchStoreVideoUrl" type="url" placeholder="https://youtube.com/... — يشتغل للزبون داخل البرنامج">
       <label>أجور التوصيل الثابتة لمتجرك (دينار) — تُحسب مرة وحدة فقط مهما زاد عدد القطع بالطلب</label>
       <input id="tchStoreDeliveryFee" type="number" placeholder="مثال: 3000">
       <div id="tchStoreSettingsMsg"></div>
@@ -9237,6 +9239,7 @@ function openTeacherStoreSettings() {
   document.getElementById('tchStoreEnabled').value = currentTeacher.storeEnabled ? 'yes' : 'no';
   document.getElementById('tchStoreDescription').value = currentTeacher.storeDescription || '';
   document.getElementById('tchStoreDeliveryFee').value = currentTeacher.storeDeliveryFee || '';
+  document.getElementById('tchStoreVideoUrl').value = currentTeacher.storeVideoUrl || '';
   document.getElementById('tchStoreSettingsMsg').innerHTML = '';
   tchStoreImageDraft = undefined;
   tchRenderStoreImagePreview(currentTeacher.storeImage || '');
@@ -9314,7 +9317,9 @@ document.getElementById('saveTeacherStoreBtn').onclick = async () => {
   const storeDeliveryFee = +document.getElementById('tchStoreDeliveryFee').value || 0;
   if (storeEnabled && !storeDescription) { setMsg('tchStoreSettingsMsg','اكتب وصف قصير لمتجرك', false); return; }
   try {
-    const storeUpdate = { storeEnabled, storeDescription, storeDeliveryFee };
+    const storeVideoUrl = document.getElementById('tchStoreVideoUrl').value.trim();
+    if (storeVideoUrl && !/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/|\/live\/)[\w-]{11}/.test(storeVideoUrl)) { setMsg('tchStoreSettingsMsg', 'رابط الفيديو لازم يكون رابط يوتيوب صحيح', false); return; }
+    const storeUpdate = { storeEnabled, storeDescription, storeDeliveryFee, storeVideoUrl: storeVideoUrl || '' };
     if (tchStoreImageDraft !== undefined) storeUpdate.storeImage = tchStoreImageDraft;
     await db.collection('teachers').doc(currentTeacher.id).update(storeUpdate);
     if (tchStoreImageDraft !== undefined) { currentTeacher.storeImage = tchStoreImageDraft; tchStoreImageDraft = undefined; }

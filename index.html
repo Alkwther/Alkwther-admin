@@ -895,6 +895,9 @@ main{max-width:560px;margin:0 auto;padding:20px 14px 100px;}#screen-textbooks /*
   .kh-ms-stats span { background:rgba(255,255,255,.1); border-radius:999px; padding:4px 10px; font-size:12px; }
   .kh-ms-stats b { color:#f4c542; }
   .kh-ms-due-note { font-size:11px; color:#a9b8d6; margin:8px 0 0; }
+  .kh-ms-dby { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:12.5px; font-weight:700; color:#0b1733; margin:6px 0; }
+  .kh-ms-dby button { border:1.5px solid #e2b955; background:#fff; border-radius:999px; padding:4px 12px; font-family:inherit; font-size:12.5px; font-weight:800; cursor:pointer; }
+  .kh-ms-dby button.on { background:linear-gradient(180deg,#1b3478,#0c1c4a); color:#fff; }
   .kh-ms-order { border:1px solid #efe7d3; border-radius:14px; padding:10px 12px; margin-bottom:10px; background:#fff; }
   .kh-ms-oh { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px; }
   .kh-ms-st { font-size:12px; font-weight:800; background:#eef3fb; border-radius:999px; padding:3px 10px; white-space:nowrap; }
@@ -7269,12 +7272,12 @@ async function khMsLoadOrders() {
     let libOwed = 0, libCount = 0, selfOwed = 0, selfCount = 0;
     orders.forEach(o => {
       if (o.status === 'cancelled') return;
-      if (o.fulfillment === 'teacher' && o.fulfillmentTeacherName === name) {
+      if (khOrderDeliveredBy(o) === 'teacher' && o.fulfillmentTeacherName === name) {
         if (o.platformOwedSettled) return;
         let owed = o.platformOwedToLibrary;
         if (owed == null) { owed = 0; (o.items || []).forEach(it => { if (shareById[it.bookId] != null) owed += ((Number(it.price) || 0) - shareById[it.bookId]) * (it.qty || 1); }); }
         selfOwed += owed; selfCount++;
-      } else if (o.fulfillment !== 'teacher') {
+      } else if (khOrderDeliveredBy(o) === 'library') {
         if ((o.teacherPayoutsSettled || {})[name]) return;
         let share = 0;
         if (o.teacherPayouts && o.teacherPayouts[name] != null) share = Number(o.teacherPayouts[name]) || 0;
@@ -7310,7 +7313,10 @@ async function khMsLoadOrders() {
         <div class="kh-ms-om">📞 ${khEscAttr(o.studentPhone || o.phone || '')} — 📍 ${khEscAttr(o.province || '')} ${o.district ? '- ' + khEscAttr(o.district) : ''}</div>
         <div class="kh-ms-om">🕒 ${o.createdAt ? new Date(o.createdAt).toLocaleString('ar-IQ') : ''}</div>
         <div class="kh-ms-oi">${mine.map(it => `• ${khEscAttr(it.title)} × ${it.qty || 1}`).join('<br>')}</div>
-        <div class="kh-ms-om">💰 المجموع: ${o.totalPrice || ''} د.ع ${o.fulfillment === 'teacher' ? '— 🚚 توصيل الأستاذ' : '— 🚚 توصيل المكتبة'}</div>
+        <div class="kh-ms-om">💰 المجموع: ${o.totalPrice || ''} د.ع — 🚚 ${khOrderDeliveredBy(o) === 'teacher' ? 'وصّله الأستاذ' : 'وصّلته المكتبة'}</div>
+        ${o.fulfillment === 'teacher' ? `<div class="kh-ms-dby">منو وصّل الطلب؟
+          <button type="button" class="${khOrderDeliveredBy(o) === 'library' ? 'on' : ''}" onclick="khSetDeliveredBy('${o.id}','library')">📚 المكتبة</button>
+          <button type="button" class="${khOrderDeliveredBy(o) === 'teacher' ? 'on' : ''}" onclick="khSetDeliveredBy('${o.id}','teacher')">🧑‍🏫 الأستاذ</button></div>` : ''}
         ${o.fulfillment !== 'teacher' ? `<div class="kh-ms-om" style="color:#0e6fa8;font-weight:700;">🔒 طلب توصيل المكتبة — حالته تتغير بس من «طلبات المكتبة»</div>` : ''}
         ${o.fulfillment === 'teacher' && st !== 'completed' && st !== 'cancelled' ? `<div class="kh-ms-actions">
           ${st === 'pending' ? `<button class="small-btn" onclick="khMsSetStatus('${o.id}','processing')">📦 تجهيز</button>` : ''}
@@ -8232,7 +8238,7 @@ async function loadAdminTeacherStores() {
       const o = d.data();
       if (o.status === 'cancelled') return;
       const isToday = (o.createdAt||0) >= todayStartMs;
-      if (o.fulfillment === 'teacher' && o.fulfillmentTeacherName) {
+      if (khOrderDeliveredBy(o) === 'teacher' && o.fulfillmentTeacherName) {
         const name = o.fulfillmentTeacherName;
         if (!o.platformOwedSettled) {
           let owed = o.platformOwedToLibrary;
@@ -8766,6 +8772,31 @@ async function restoreStockForItems(items) {
     await Promise.all(updates);
   } catch(e) { console.error('restoreStockForItems failed', e); }
 }
+// منو وصّل الطلب فعلياً: طلبات متاجر الأساتذة ممكن توصّلها المكتبة (يحددها الموظف)، وهذا يقرر منو يستحق لمنو
+function khOrderDeliveredBy(o) {
+  if (o && (o.deliveredBy === 'library' || o.deliveredBy === 'teacher')) return o.deliveredBy;
+  return o && o.fulfillment === 'teacher' ? 'teacher' : 'library';
+}
+async function khSetDeliveredBy(id, who) {
+  try {
+    const d = await db.collection('orders').doc(id).get();
+    if (!d.exists) return;
+    const o = d.data();
+    const update = { deliveredBy: who };
+    // إذا الطلب واصل وتحوّل لتوصيل المكتبة، نحسب حصة الأستاذ اللي تستحقها المكتبة تدفعها
+    if (who === 'library' && o.status === 'completed' && !o.teacherPayoutsComputed && typeof computeTeacherPayoutsForOrder === 'function') {
+      update.teacherPayouts = await computeTeacherPayoutsForOrder(o);
+      update.teacherPayoutsSettled = {};
+      update.teacherPayoutsComputed = true;
+    }
+    if (who === 'teacher' && o.status === 'completed' && o.platformOwedToLibrary == null && typeof computePlatformOwedForOrder === 'function') {
+      update.platformOwedToLibrary = await computePlatformOwedForOrder(o);
+      update.platformOwedSettled = false;
+    }
+    await db.collection('orders').doc(id).update(update);
+  } catch (e) { console.error(e); alert('تعذّر الحفظ: ' + (e.message || '')); }
+  try { if (typeof khMsLoadOrders === 'function' && document.getElementById('msStoreSelect') && document.getElementById('msStoreSelect').value) khMsLoadOrders(); } catch (e) {}
+}
 async function setOrderStatus(id, status) {
   if (status === 'cancelled' && !confirm('هل أنت متأكد من إلغاء هذا الطلب؟')) return;
   if (status === 'completed' && !confirm('هل أنت متأكد من تأكيد تسليم هذا الطلب؟')) return;
@@ -8773,11 +8804,15 @@ async function setOrderStatus(id, status) {
   if (status === 'processing') update.processingAt = Date.now();
   if (status === 'delivering') update.deliveringAt = Date.now();
   if (status === 'cancelled') update.cancelledAt = Date.now();
+  if (status === 'delivering') {
+    try { const od = await db.collection('orders').doc(id).get(); if (od.exists && od.data().fulfillment === 'teacher' && !od.data().deliveredBy) update.deliveredBy = 'library'; } catch (e) { console.error(e); }
+  }
   if (status === 'completed') {
     update.completedAt = Date.now();
     const orderDoc = await db.collection('orders').doc(id).get();
     const order = orderDoc.data();
-    if (order.fulfillment === 'teacher') {
+    if (order.fulfillment === 'teacher' && !order.deliveredBy) { order.deliveredBy = 'library'; update.deliveredBy = 'library'; } // الموظف هو اللي سلّمه من طلبات المكتبة
+    if (khOrderDeliveredBy(order) === 'teacher') {
       if (order.platformOwedToLibrary == null) {
         update.platformOwedToLibrary = await computePlatformOwedForOrder(order);
         update.platformOwedSettled = false;

@@ -7280,7 +7280,8 @@ async function khMsLoadOrders() {
       } else if (khOrderDeliveredBy(o) === 'library') {
         if ((o.teacherPayoutsSettled || {})[name]) return;
         let share = 0;
-        if (o.teacherPayouts && o.teacherPayouts[name] != null) share = Number(o.teacherPayouts[name]) || 0;
+        if (o.fulfillment === 'teacher') share = khStoreOrderTeacherDue(o); // طلب من متجره ووصّلته المكتبة
+        else if (o.teacherPayouts && o.teacherPayouts[name] != null) share = Number(o.teacherPayouts[name]) || 0;
         else (o.items || []).forEach(it => { if (shareById[it.bookId] != null) share += shareById[it.bookId] * (it.qty || 1); });
         if (share > 0) { libOwed += share; libCount++; }
       }
@@ -8257,7 +8258,9 @@ async function loadAdminTeacherStores() {
         // نجمع حصة كل أستاذ بهذا الطلب أول شي، وبعدين نطرح أجرة توصيله مرة وحدة فقط للطلب كامل
         // (مو لكل قطعة على حدة) — التوصيل يُدفع مرة وحدة للطلب بغض النظر عن عدد القطع بداخله
         const perTeacherRaw = {};
-        if (o.teacherPayouts) {
+        if (o.fulfillment === 'teacher' && o.fulfillmentTeacherName) {
+          perTeacherRaw[o.fulfillmentTeacherName] = khStoreOrderTeacherDue(o); // طلب متجر وصّلته المكتبة: الكلي ناقص التوصيل
+        } else if (o.teacherPayouts) {
           Object.keys(o.teacherPayouts).forEach(name => { perTeacherRaw[name] = o.teacherPayouts[name]; });
         } else {
           (o.items||[]).forEach(item => {
@@ -8775,6 +8778,13 @@ async function restoreStockForItems(items) {
   } catch(e) { console.error('restoreStockForItems failed', e); }
 }
 // منو وصّل الطلب فعلياً: طلبات متاجر الأساتذة ممكن توصّلها المكتبة (يحددها الموظف)، وهذا يقرر منو يستحق لمنو
+// طلب متجر وصّلته المكتبة: مستحق الأستاذ = المبلغ الكلي ناقص أجرة التوصيل (يعني سعر مواده كاملة)
+function khStoreOrderTeacherDue(o) {
+  const sub = (o.items || []).reduce((t, it) => t + (Number(it.price) || 0) * (Number(it.qty) || 1), 0);
+  if (sub > 0) return sub;
+  const total = Number(o.totalPrice) || 0, fee = Number(o.deliveryFee) || 0;
+  return Math.max(0, total - fee);
+}
 function khOrderDeliveredBy(o) {
   if (o && (o.deliveredBy === 'library' || o.deliveredBy === 'teacher')) return o.deliveredBy;
   return o && o.fulfillment === 'teacher' ? 'teacher' : 'library';
@@ -8786,8 +8796,8 @@ async function khSetDeliveredBy(id, who) {
     const o = d.data();
     const update = { deliveredBy: who };
     // إذا الطلب واصل وتحوّل لتوصيل المكتبة، نحسب حصة الأستاذ اللي تستحقها المكتبة تدفعها
-    if (who === 'library' && o.status === 'completed' && !o.teacherPayoutsComputed && typeof computeTeacherPayoutsForOrder === 'function') {
-      update.teacherPayouts = await computeTeacherPayoutsForOrder(o);
+    if (who === 'library' && o.status === 'completed' && !o.teacherPayoutsComputed) {
+      update.teacherPayouts = o.fulfillmentTeacherName ? { [o.fulfillmentTeacherName]: khStoreOrderTeacherDue(o) } : await computeTeacherPayoutsForOrder(o);
       update.teacherPayoutsSettled = {};
       update.teacherPayoutsComputed = true;
     }
@@ -8834,7 +8844,9 @@ async function setOrderStatus(id, status) {
         update.platformOwedSettled = false;
       }
     } else if (!order.teacherPayoutsComputed) {
-      update.teacherPayouts = await computeTeacherPayoutsForOrder(order);
+      update.teacherPayouts = (order.fulfillment === 'teacher' && order.fulfillmentTeacherName)
+        ? { [order.fulfillmentTeacherName]: khStoreOrderTeacherDue(order) }
+        : await computeTeacherPayoutsForOrder(order);
       update.teacherPayoutsSettled = {};
       update.teacherPayoutsComputed = true;
     }

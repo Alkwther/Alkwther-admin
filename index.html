@@ -7318,6 +7318,7 @@ async function khMsLoadOrders() {
           <button type="button" class="${khOrderDeliveredBy(o) === 'library' ? 'on' : ''}" onclick="khSetDeliveredBy('${o.id}','library')">📚 المكتبة</button>
           <button type="button" class="${khOrderDeliveredBy(o) === 'teacher' ? 'on' : ''}" onclick="khSetDeliveredBy('${o.id}','teacher')">🧑‍🏫 الأستاذ</button></div>` : ''}
         ${o.fulfillment !== 'teacher' ? `<div class="kh-ms-om" style="color:#0e6fa8;font-weight:700;">🔒 طلب توصيل المكتبة — حالته تتغير بس من «طلبات المكتبة»</div>` : ''}
+        ${o.fulfillment === 'teacher' && st === 'completed' ? `<div class="kh-ms-actions"><button class="small-btn" onclick="khRevertToDelivering('${o.id}')">↩️ إرجاع إلى قيد التوصيل</button></div>` : ''}
         ${o.fulfillment === 'teacher' && st !== 'completed' && st !== 'cancelled' ? `<div class="kh-ms-actions">
           ${st === 'pending' ? `<button class="small-btn" onclick="khMsSetStatus('${o.id}','processing')">📦 تجهيز</button>` : ''}
           ${st !== 'delivering' ? `<button class="small-btn" onclick="khMsSetStatus('${o.id}','delivering')">🚚 قيد التوصيل</button>` : ''}
@@ -8577,6 +8578,7 @@ function renderOrderCard(id, o, unreadCount, mode) {
        <button class="small-btn" onclick="deleteOrder('${id}')">🗑️ حذف الطلب</button>`;
   }
   actionsHtml += `<button class="small-btn" onclick="copyOrderLink('${id}')">🔗 نسخ رابط الطلب</button>`;
+  if (o.status === 'completed') actionsHtml += `<button class="small-btn" style="background:#0e6fa8;color:#fff;" onclick="khRevertToDelivering('${id}')">↩️ إرجاع إلى قيد التوصيل</button>`;
   actionsHtml += o.waVerified
     ? `<button class="small-btn" onclick="khWaUnverify('${id}')">↩️ إلغاء تأكيد الواتساب</button>`
     : `<button class="small-btn" style="background:#25d366;color:#fff;" onclick="khWaVerify('${id}','${o.phone||''}')">✅ تأكيد واتساب</button>`;
@@ -8796,6 +8798,20 @@ async function khSetDeliveredBy(id, who) {
     await db.collection('orders').doc(id).update(update);
   } catch (e) { console.error(e); alert('تعذّر الحفظ: ' + (e.message || '')); }
   try { if (typeof khMsLoadOrders === 'function' && document.getElementById('msStoreSelect') && document.getElementById('msStoreSelect').value) khMsLoadOrders(); } catch (e) {}
+}
+// إرجاع طلب واصل إلى «قيد التوصيل» (إذا انضغط «تم التسليم» بالغلط أو الطلب ما وصل فعلاً)
+async function khRevertToDelivering(id) {
+  if (!confirm('إرجاع هذا الطلب من «تم التسليم» إلى «قيد التوصيل»؟')) return;
+  try {
+    // نبدأ وقت توصيل جديد حتى ما يرجع «واصل» تلقائياً بسبب الوقت القديم
+    await db.collection('orders').doc(id).update({ status: 'delivering', deliveringAt: Date.now(), completedAt: null, seenByStaff: true });
+  } catch (e) { console.error(e); alert('تعذّر الإرجاع: ' + (e.message || '')); return; }
+  try { refreshBellBadge(); } catch (e) {}
+  const sr = document.getElementById('ordersSearchResults');
+  if (sr && !sr.classList.contains('hidden') && typeof performGlobalOrderSearch === 'function') performGlobalOrderSearch();
+  else if (typeof loadOrdersAdmin === 'function') loadOrdersAdmin();
+  if (document.getElementById('waSearchCode') && document.getElementById('waSearchCode').value.trim()) khWaSearch();
+  try { if (document.getElementById('msStoreSelect') && document.getElementById('msStoreSelect').value) khMsLoadOrders(); } catch (e) {}
 }
 async function setOrderStatus(id, status) {
   if (status === 'cancelled' && !confirm('هل أنت متأكد من إلغاء هذا الطلب؟')) return;

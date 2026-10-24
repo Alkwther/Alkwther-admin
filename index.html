@@ -7276,7 +7276,7 @@ async function khMsLoadOrders() {
         if (o.platformOwedSettled) return;
         let owed = o.platformOwedToLibrary;
         if (owed == null) { owed = 0; (o.items || []).forEach(it => { if (shareById[it.bookId] != null) owed += ((Number(it.price) || 0) - shareById[it.bookId]) * (it.qty || 1); }); }
-        selfOwed += owed; selfCount++;
+        selfOwed += Math.max(0, Number(owed) || 0); selfCount++;
       } else if (khOrderDeliveredBy(o) === 'library') {
         if ((o.teacherPayoutsSettled || {})[name]) return;
         let share = 0;
@@ -8248,7 +8248,7 @@ async function loadAdminTeacherStores() {
             owed = 0;
             (o.items||[]).forEach(item => { const b = bookInfoById[item.bookId]; if (b && b.teacherName === name) owed += (item.price - b.teacherShare) * item.qty; });
           }
-          selfOwed[name] = (selfOwed[name]||0) + owed;
+          selfOwed[name] = (selfOwed[name]||0) + Math.max(0, Number(owed) || 0);
           selfCount[name] = (selfCount[name]||0) + 1;
         }
         if (isToday) todayCount[name] = (todayCount[name]||0) + 1;
@@ -8741,7 +8741,7 @@ async function computePlatformOwedForOrder(order) {
     const bookDoc = await db.collection('books').doc(item.bookId).get();
     if (!bookDoc.exists) continue;
     const book = bookDoc.data();
-    if (book.teacherShare != null) owed += (item.price - book.teacherShare) * item.qty;
+    if (book.teacherShare != null) owed += Math.max(0, item.price - book.teacherShare) * item.qty; // ما يصير سالب أبداً
   }
   return owed;
 }

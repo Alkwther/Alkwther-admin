@@ -884,6 +884,17 @@ main{max-width:560px;margin:0 auto;padding:20px 14px 100px;}#screen-textbooks /*
   .kh-ms-filters { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
   .kh-ms-chip { border:1.5px solid #e2b955; background:#fff; border-radius:999px; padding:6px 12px; font-family:inherit; font-size:13px; font-weight:700; cursor:pointer; }
   .kh-ms-chip.active { background:linear-gradient(180deg,#ffe08a,#d9a93f); }
+  .kh-ms-due { background:linear-gradient(160deg,#1f3f86,#0b1d4f); color:#fff; border:2px solid #e2b955; border-radius:18px; padding:14px; margin-bottom:12px; }
+  .kh-ms-due-row { display:grid; grid-template-columns:1fr auto; gap:2px 8px; padding:8px 0; border-bottom:1px dashed rgba(226,185,85,.4); }
+  .kh-ms-due-row span { font-size:12.5px; color:#dbe5f7; }
+  .kh-ms-due-row b { font-size:18px; color:#f4c542; grid-row:span 2; align-self:center; }
+  .kh-ms-due-row small { font-size:11.5px; color:#a9b8d6; }
+  .kh-ms-due-net { margin-top:10px; padding:10px; border-radius:12px; text-align:center; font-size:14px; background:rgba(255,255,255,.08); }
+  .kh-ms-due-net b { font-size:20px; color:#f4c542; }
+  .kh-ms-stats { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .kh-ms-stats span { background:rgba(255,255,255,.1); border-radius:999px; padding:4px 10px; font-size:12px; }
+  .kh-ms-stats b { color:#f4c542; }
+  .kh-ms-due-note { font-size:11px; color:#a9b8d6; margin:8px 0 0; }
   .kh-ms-order { border:1px solid #efe7d3; border-radius:14px; padding:10px 12px; margin-bottom:10px; background:#fff; }
   .kh-ms-oh { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px; }
   .kh-ms-st { font-size:12px; font-weight:800; background:#eef3fb; border-radius:999px; padding:3px 10px; white-space:nowrap; }
@@ -2345,7 +2356,6 @@ main{max-width:560px;margin:0 auto;padding:20px 14px 100px;}#screen-textbooks /*
             <button class="small-btn" id="ordersTabArrived" style="flex:1;">📬 الطلبات الواصلة <span id="ordersTabArrivedCount"></span></button>
             <button class="small-btn" id="ordersTabCancelled" style="flex:1;">🚫 الملغية <span id="ordersTabCancelledCount"></span></button>
             <button class="small-btn" id="ordersTabProblems" style="flex:1;">⚠️ المشاكل <span id="ordersTabProblemsCount"></span></button>
-            <button class="small-btn" id="ordersTabStores" style="flex:1;" onclick="switchOrdersTab('stores')">🏪 طلبات المتاجر <span id="ordersTabStoresCount"></span></button>
           </div>
           <button class="btn secondary hidden" id="convertAllToDeliveringBtn" style="margin-top:10px;">🔄 اضغط لتحويل جميع الطلبات قيد التنفيذ إلى قيد التوصيل</button>
           <button class="btn secondary hidden" id="convertAllToArrivedBtn" style="margin-top:10px;">✅ اضغط لتحويل جميع الطلبات قيد التوصيل إلى الطلبات الواصلة</button>
@@ -4613,7 +4623,7 @@ function setupNewOrdersBadgeWatcher() {
   let firstSnap = true;
   db.collection('orders').where('status','==','pending').onSnapshot(snap => {
     // طلبات المكتبة الجديدة + طلبات متاجر الأساتذة اللي بعد ما شافها الموظف — كلها بنفس رقم 📦
-    const count = snap.docs.filter(d => { const o = d.data(); return o.fulfillment === 'teacher' ? o.seenByStaff !== true : !o.processingAt; }).length;
+    const count = snap.docs.filter(d => !d.data().processingAt).length;
     ['ordersUnreadBadge','ordersUnreadBadge2','topOrdersBadge'].forEach(bid => {
       const badge = document.getElementById(bid);
       if (!badge) return;
@@ -6581,7 +6591,7 @@ function loadOrdersAdmin() {
   const pendingWrites = [];
   for (const d of snap.docs) {
     const o = d.data();
-    if (o.fulfillment === 'teacher') { storeRows.push({ id: d.id, o: { ...o, status: computeEffectiveStatus(o) } }); continue; } // طلبات متاجر الأساتذة: تبويب منفصل، والأستاذ يوصّلها
+    if (o.fulfillment === 'teacher') { allRows.push({ id: d.id, o: { ...o } }); continue; } // طلبات متاجر الأساتذة: بنفس قائمة الطلبات وبكل الأزرار، بدون تصحيح حالة تلقائي
 
     const effectiveStatus = computeEffectiveStatus(o);
 
@@ -6619,11 +6629,7 @@ function renderOrdersFromCache() {
   // شارة موحّدة: عدد الطلبات الجديدة + عدد الرسائل غير المقروءة المرتبطة بالطلبات (تبقى ظاهرة لين يفتحها الموظف فعلياً)
   const newCount = allRows.filter(({o}) => !o.processingAt && o.status !== 'cancelled' && o.status !== 'completed').length;
   const totalUnreadMsgs = Object.values(unreadByOrderId).reduce((s,n) => s+n, 0);
-  const storeRowsAll = ordersAdminCache.storeRows || [];
-  const storeNewCount = storeRowsAll.filter(({o}) => o.seenByStaff !== true && o.status !== 'cancelled' && o.status !== 'completed').length;
-  const combinedBadgeCount = newCount + totalUnreadMsgs + storeNewCount;
-  const stEl = document.getElementById('ordersTabStoresCount');
-  if (stEl) stEl.textContent = storeNewCount > 0 ? `(${storeNewCount} جديد)` : (storeRowsAll.length ? `(${storeRowsAll.filter(({o}) => o.status !== 'completed' && o.status !== 'cancelled').length})` : '');
+  const combinedBadgeCount = newCount + totalUnreadMsgs;
   ['ordersUnreadBadge','ordersUnreadBadge2','topOrdersBadge'].forEach(bid => {
     const badge = document.getElementById(bid);
     if (!badge) return;
@@ -6650,16 +6656,6 @@ function renderOrdersFromCache() {
 
   // تصنيف الطلبات للتبويبات (أي طلب فيه مشكلة ينتقل لتبويب "المشاكل" فقط، ويُستثنى من تبويبه العادي)
   let rows;
-  if (currentOrdersTab === 'stores') {
-    // طلبات متاجر الأساتذة: للمتابعة والمراسلة — التجهيز والتوصيل على الأستاذ نفسه
-    const sr = storeRowsAll;
-    if (!sr.length) { list.innerHTML = '<p>لا توجد طلبات متاجر بعد.</p>'; return; }
-    list.innerHTML = '<p style="font-size:12.5px;color:#64748b;margin:0 0 8px;">🏪 هذي طلبات من متاجر الأساتذة، والأستاذ هو اللي يجهّزها ويوصّلها. تگدر تتابعها وتراسل الزبون.</p>' +
-      sr.map(({id, o}) => `<div style="font-size:12px;font-weight:800;color:#b8862a;margin:8px 4px 2px;">🏪 متجر ${o.fulfillmentTeacherName || ''}${o.seenByStaff !== true ? ' — <span style="color:#dc2626;">جديد</span>' : ''}</div>` + renderOrderCard(id, o, unreadByOrderId[id] || 0, 'arrived')).join('');
-    const unseen = sr.filter(({o}) => o.seenByStaff !== true);
-    if (unseen.length) Promise.all(unseen.map(({id}) => db.collection('orders').doc(id).update({ seenByStaff: true }))).then(() => refreshBellBadge()).catch(e => console.error('mark store orders seen failed', e));
-    return;
-  }
   if (currentOrdersTab === 'problems') {
     rows = allRows.filter(({o}) => !!o.hasProblem);
   } else if (currentOrdersTab === 'new') {
@@ -6706,23 +6702,15 @@ document.getElementById('ordersTabArrived').onclick = () => switchOrdersTab('arr
 document.getElementById('ordersTabCancelled').onclick = () => switchOrdersTab('cancelled');
 document.getElementById('ordersTabProblems').onclick = () => switchOrdersTab('problems');
 
-// زر 📦: إذا ماكو طلبات مكتبة جديدة بس أكو طلبات متاجر جديدة، يفتح تبويب المتاجر مباشرة
-function khPreferredOrdersTab() {
-  try {
-    const c = ordersAdminCache || {};
-    const libNew = (c.allRows || []).filter(({o}) => !o.processingAt && o.status !== 'cancelled' && o.status !== 'completed' && !o.hasProblem).length;
-    const storeNew = (c.storeRows || []).filter(({o}) => o.seenByStaff !== true && o.status !== 'cancelled' && o.status !== 'completed').length;
-    return (!libNew && storeNew) ? 'stores' : 'new';
-  } catch (e) { return 'new'; }
-}
+function khPreferredOrdersTab() { return 'new'; }
 function switchOrdersTab(tab) {
   currentOrdersTab = tab;
-  const colors = { new:'#dc2626', processing:'#0e6fa8', delivering:'#16a34a', arrived:'#6b21a8', cancelled:'#374151', problems:'#b91c1c', stores:'#b8862a' };
-  ['ordersTabNew','ordersTabProcessing','ordersTabDelivering','ordersTabArrived','ordersTabCancelled','ordersTabProblems','ordersTabStores'].forEach(bid => {
+  const colors = { new:'#dc2626', processing:'#0e6fa8', delivering:'#16a34a', arrived:'#6b21a8', cancelled:'#374151', problems:'#b91c1c' };
+  ['ordersTabNew','ordersTabProcessing','ordersTabDelivering','ordersTabArrived','ordersTabCancelled','ordersTabProblems'].forEach(bid => {
     const btn = document.getElementById(bid);
     btn.style.background = ''; btn.style.color = '';
   });
-  const activeBtnId = { new:'ordersTabNew', processing:'ordersTabProcessing', delivering:'ordersTabDelivering', arrived:'ordersTabArrived', cancelled:'ordersTabCancelled', problems:'ordersTabProblems', stores:'ordersTabStores' }[tab];
+  const activeBtnId = { new:'ordersTabNew', processing:'ordersTabProcessing', delivering:'ordersTabDelivering', arrived:'ordersTabArrived', cancelled:'ordersTabCancelled', problems:'ordersTabProblems' }[tab];
   document.getElementById(activeBtnId).style.background = colors[tab];
   document.getElementById(activeBtnId).style.color = '#fff';
   document.getElementById('convertAllToDeliveringBtn').classList.toggle('hidden', tab !== 'processing');
@@ -7267,17 +7255,54 @@ async function khMsLoadOrders() {
   fBox.innerHTML = [['active', 'الحالية'], ['completed', 'الواصلة'], ['cancelled', 'الملغية'], ['all', 'الكل']].map(([k, l]) => `<button type="button" class="kh-ms-chip ${msOrderFilter === k ? 'active' : ''}" onclick="msOrderFilter='${k}';khMsLoadOrders()">${l}</button>`).join('');
   list.innerHTML = '<p class="loader">جاري التحميل...</p>';
   try {
-    const snap = await db.collection('orders').orderBy('createdAt', 'desc').limit(400).get();
+    const [snap, booksSnap] = await Promise.all([
+      db.collection('orders').get(),
+      db.collection('books').where('teacherName', '==', name).get()
+    ]);
+    const shareById = {};
+    booksSnap.docs.forEach(d => { shareById[d.id] = Number(d.data().teacherShare) || 0; });
     let orders = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-      .filter(o => o.fulfillmentTeacherName === name || (o.items || []).some(it => it.teacherName === name));
+      .filter(o => o.fulfillmentTeacherName === name || (o.items || []).some(it => it.teacherName === name || shareById[it.bookId] != null))
+      .map(o => ({ ...o, status: (o.fulfillment === 'teacher' || typeof computeEffectiveStatus !== 'function') ? (o.status || 'pending') : computeEffectiveStatus(o) }))
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    // ===== المبلغ المستحق لهذا المتجر (نفس حساب قسم «متاجر الأساتذة») =====
+    let libOwed = 0, libCount = 0, selfOwed = 0, selfCount = 0;
+    orders.forEach(o => {
+      if (o.status === 'cancelled') return;
+      if (o.fulfillment === 'teacher' && o.fulfillmentTeacherName === name) {
+        if (o.platformOwedSettled) return;
+        let owed = o.platformOwedToLibrary;
+        if (owed == null) { owed = 0; (o.items || []).forEach(it => { if (shareById[it.bookId] != null) owed += ((Number(it.price) || 0) - shareById[it.bookId]) * (it.qty || 1); }); }
+        selfOwed += owed; selfCount++;
+      } else if (o.fulfillment !== 'teacher') {
+        if ((o.teacherPayoutsSettled || {})[name]) return;
+        let share = 0;
+        if (o.teacherPayouts && o.teacherPayouts[name] != null) share = Number(o.teacherPayouts[name]) || 0;
+        else (o.items || []).forEach(it => { if (shareById[it.bookId] != null) share += shareById[it.bookId] * (it.qty || 1); });
+        if (share > 0) { libOwed += share; libCount++; }
+      }
+    });
+    const cnt = st => orders.filter(o => (o.status || 'pending') === st).length;
+    const fmt = n => Math.round(n).toLocaleString('en-US');
+    const net = libOwed - selfOwed;
+    const summaryHtml = `<div class="kh-ms-due">
+        <div class="kh-ms-due-row"><span>💰 مستحق للأستاذ (طلبات توصيل المكتبة)</span><b>${fmt(libOwed)} د.ع</b><small>${libCount} طلب</small></div>
+        <div class="kh-ms-due-row"><span>💸 مستحق للمكتبة (طلبات توصيل الأستاذ)</span><b>${fmt(selfOwed)} د.ع</b><small>${selfCount} طلب</small></div>
+        <div class="kh-ms-due-net ${net >= 0 ? 'pos' : 'neg'}">⚖️ ${net >= 0 ? 'الصافي المستحق للأستاذ' : 'الصافي المستحق للمكتبة'}: <b>${fmt(Math.abs(net))} د.ع</b></div>
+        <div class="kh-ms-stats">
+          <span>🕒 جديد <b>${cnt('pending')}</b></span><span>📦 قيد التجهيز <b>${cnt('processing')}</b></span>
+          <span>🚚 قيد التوصيل <b>${cnt('delivering')}</b></span><span>✅ واصل <b>${cnt('completed')}</b></span><span>❌ ملغي <b>${cnt('cancelled')}</b></span>
+        </div>
+        <p class="kh-ms-due-note">المبالغ غير المسدَّدة فقط. التسديد يصير من قسم «متاجر الأساتذة».</p>
+      </div>`;
     orders = orders.filter(o => {
       const st = o.status || 'pending';
       if (msOrderFilter === 'active') return st !== 'completed' && st !== 'cancelled';
       if (msOrderFilter === 'all') return true;
       return st === msOrderFilter;
     });
-    if (!orders.length) { list.innerHTML = '<p style="color:#8a90a3;">ما فيه طلبات هنا.</p>'; return; }
-    list.innerHTML = orders.map(o => {
+    if (!orders.length) { list.innerHTML = summaryHtml + '<p style="color:#8a90a3;">ما فيه طلبات هنا.</p>'; return; }
+    list.innerHTML = summaryHtml + orders.map(o => {
       const mine = (o.items || []).filter(it => it.teacherName === name || o.fulfillmentTeacherName === name);
       const st = o.status || 'pending';
       return `<div class="kh-ms-order">
@@ -7286,7 +7311,8 @@ async function khMsLoadOrders() {
         <div class="kh-ms-om">🕒 ${o.createdAt ? new Date(o.createdAt).toLocaleString('ar-IQ') : ''}</div>
         <div class="kh-ms-oi">${mine.map(it => `• ${khEscAttr(it.title)} × ${it.qty || 1}`).join('<br>')}</div>
         <div class="kh-ms-om">💰 المجموع: ${o.totalPrice || ''} د.ع ${o.fulfillment === 'teacher' ? '— 🚚 توصيل الأستاذ' : '— 🚚 توصيل المكتبة'}</div>
-        ${st !== 'completed' && st !== 'cancelled' ? `<div class="kh-ms-actions">
+        ${o.fulfillment !== 'teacher' ? `<div class="kh-ms-om" style="color:#0e6fa8;font-weight:700;">🔒 طلب توصيل المكتبة — حالته تتغير بس من «طلبات المكتبة»</div>` : ''}
+        ${o.fulfillment === 'teacher' && st !== 'completed' && st !== 'cancelled' ? `<div class="kh-ms-actions">
           ${st === 'pending' ? `<button class="small-btn" onclick="khMsSetStatus('${o.id}','processing')">📦 تجهيز</button>` : ''}
           ${st !== 'delivering' ? `<button class="small-btn" onclick="khMsSetStatus('${o.id}','delivering')">🚚 قيد التوصيل</button>` : ''}
           <button class="small-btn" onclick="khMsSetStatus('${o.id}','completed')">✅ وصل</button>
@@ -7297,6 +7323,10 @@ async function khMsLoadOrders() {
   } catch (e) { console.error(e); list.innerHTML = '<p style="color:#b91c1c;">تعذّر التحميل: ' + (e.message || '') + '</p>'; }
 }
 async function khMsSetStatus(id, status) {
+  try {
+    const d = await db.collection('orders').doc(id).get();
+    if (d.exists && d.data().fulfillment !== 'teacher') { alert('🔒 هذا طلب توصيل المكتبة — غيّر حالته من «طلبات المكتبة» فقط'); return; }
+  } catch (e) { console.error(e); }
   try { await setOrderStatus(id, status); } catch (e) { console.error(e); alert('تعذّر التحديث: ' + (e.message || '')); }
   khMsLoadOrders();
 }
@@ -8544,7 +8574,9 @@ function renderOrderCard(id, o, unreadCount, mode) {
   actionsHtml += o.waVerified
     ? `<button class="small-btn" onclick="khWaUnverify('${id}')">↩️ إلغاء تأكيد الواتساب</button>`
     : `<button class="small-btn" style="background:#25d366;color:#fff;" onclick="khWaVerify('${id}','${o.phone||''}')">✅ تأكيد واتساب</button>`;
-  return `<div class="admin-list-item" style="flex-direction:column;align-items:stretch;${cardStyle}">
+  const khStoreName = o.fulfillmentTeacherName || ((o.items || []).find(it => it.teacherName) || {}).teacherName || '';
+  const khStoreLabel = khStoreName ? `<div style="font-size:13px;font-weight:900;color:#b8862a;margin:0 0 6px;">🏪 متجر ${khStoreName}${o.fulfillment === 'teacher' ? ' — يوصّله الأستاذ' : ''}</div>` : '';
+  return `<div class="admin-list-item" style="flex-direction:column;align-items:stretch;${cardStyle}">${khStoreLabel}
       <div style="margin-bottom:6px;${textColor}">
         ${isNew ? '<span style="background:#dc2626;color:#fff;border-radius:8px;padding:2px 8px;font-size:11px;font-weight:bold;">🆕 جديد</span> ' : ''}
         ${o.customerId ? `<span style="background:#0e6fa8;color:#fff;border-radius:8px;padding:2px 8px;font-size:11px;font-weight:bold;">🪪 رقم الزبون: ${o.customerId}</span> ` : ''}

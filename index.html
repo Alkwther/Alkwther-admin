@@ -923,7 +923,7 @@ main{max-width:560px;margin:0 auto;padding:20px 14px 100px;}#screen-textbooks /*
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#f0dfae" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.4 8.4 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
         <span id="libCustomerChatBadge" class="hidden" style="position:absolute;top:-4px;left:-6px;background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;font-weight:bold;">0</span>
       </button>
-      <button class="icon-btn" id="topOrdersBtn" onclick="show('screen-admin'); openAdminSection('library-hub'); openAdminSection('library-orders'); switchOrdersTab('new');" title="طلبات المكتبة" style="position:relative;display:none;">
+      <button class="icon-btn" id="topOrdersBtn" onclick="show('screen-admin'); openAdminSection('library-hub'); openAdminSection('library-orders'); switchOrdersTab(khPreferredOrdersTab());" title="طلبات المكتبة" style="position:relative;display:none;">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#f0dfae" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
         <span id="topOrdersBadge" class="hidden" style="position:absolute;top:-4px;left:-6px;background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;font-weight:bold;">0</span>
       </button>
@@ -2345,6 +2345,7 @@ main{max-width:560px;margin:0 auto;padding:20px 14px 100px;}#screen-textbooks /*
             <button class="small-btn" id="ordersTabArrived" style="flex:1;">📬 الطلبات الواصلة <span id="ordersTabArrivedCount"></span></button>
             <button class="small-btn" id="ordersTabCancelled" style="flex:1;">🚫 الملغية <span id="ordersTabCancelledCount"></span></button>
             <button class="small-btn" id="ordersTabProblems" style="flex:1;">⚠️ المشاكل <span id="ordersTabProblemsCount"></span></button>
+            <button class="small-btn" id="ordersTabStores" style="flex:1;" onclick="switchOrdersTab('stores')">🏪 طلبات المتاجر <span id="ordersTabStoresCount"></span></button>
           </div>
           <button class="btn secondary hidden" id="convertAllToDeliveringBtn" style="margin-top:10px;">🔄 اضغط لتحويل جميع الطلبات قيد التنفيذ إلى قيد التوصيل</button>
           <button class="btn secondary hidden" id="convertAllToArrivedBtn" style="margin-top:10px;">✅ اضغط لتحويل جميع الطلبات قيد التوصيل إلى الطلبات الواصلة</button>
@@ -3317,6 +3318,7 @@ try {
   // إعطاء اسم مستقل يفصل جلسة هذي اللوحة تماماً عن جلسة الموقع الرئيسي.
   const adminFirebaseApp = firebase.initializeApp(firebaseConfig, 'KawtharAdminPanel');
   db = adminFirebaseApp.firestore();
+  try { db.settings({ experimentalAutoDetectLongPolling: true, merge: true }); } catch (e) { console.warn('firestore settings', e); }
   auth = adminFirebaseApp.auth();
   // ملاحظة: أزلنا استدعاء setPersistence لأنه كان المصدر الحقيقي لمشكلة "تسجيل الدخول ما يبقى محفوظ".
   // السبب: هذا الاستدعاء يعيد تهيئة نظام حفظ الجلسة بعد ما يكون Firebase قد بدأ فعلاً
@@ -4610,7 +4612,8 @@ function setupNewOrdersBadgeWatcher() {
   newOrdersBadgeListenerStarted = true;
   let firstSnap = true;
   db.collection('orders').where('status','==','pending').onSnapshot(snap => {
-    const count = snap.docs.filter(d => d.data().fulfillment !== 'teacher' && !d.data().processingAt).length;
+    // طلبات المكتبة الجديدة + طلبات متاجر الأساتذة اللي بعد ما شافها الموظف — كلها بنفس رقم 📦
+    const count = snap.docs.filter(d => { const o = d.data(); return o.fulfillment === 'teacher' ? o.seenByStaff !== true : !o.processingAt; }).length;
     ['ordersUnreadBadge','ordersUnreadBadge2','topOrdersBadge'].forEach(bid => {
       const badge = document.getElementById(bid);
       if (!badge) return;
@@ -4618,7 +4621,7 @@ function setupNewOrdersBadgeWatcher() {
       else badge.classList.add('hidden');
     });
     if (!firstSnap) {
-      const hasNew = snap.docChanges().some(ch => ch.type === 'added' && ch.doc.data().fulfillment !== 'teacher');
+      const hasNew = snap.docChanges().some(ch => ch.type === 'added');
       if (hasNew && isNotificationSoundEnabled()) playNotificationBeep();
     }
     firstSnap = false;
@@ -6574,10 +6577,11 @@ function loadOrdersAdmin() {
   // نحسب الحالة الفعلية فوراً (سريع، بدون انتظار) ونعرض الطلبات على أساسها مباشرة،
   // وبنفس الوقت نرسل أي تصحيحات حالة لازمة لقاعدة البيانات بالخلفية بدون ما ننتظرها
   const allRows = [];
+  const storeRows = [];
   const pendingWrites = [];
   for (const d of snap.docs) {
     const o = d.data();
-    if (o.fulfillment === 'teacher') continue; // هذي طلبات يوصّلها الأستاذ بنفسه، تظهر له هو فقط بلوحته
+    if (o.fulfillment === 'teacher') { storeRows.push({ id: d.id, o: { ...o, status: computeEffectiveStatus(o) } }); continue; } // طلبات متاجر الأساتذة: تبويب منفصل، والأستاذ يوصّلها
 
     const effectiveStatus = computeEffectiveStatus(o);
 
@@ -6602,6 +6606,7 @@ function loadOrdersAdmin() {
   if (pendingWrites.length > 0) Promise.all(pendingWrites).catch(e => console.error('order status auto-correction failed', e));
 
   ordersAdminCache.allRows = allRows;
+  ordersAdminCache.storeRows = storeRows;
   renderOrdersFromCache();
     }, (err) => console.error('orders live listener failed', err));
 }
@@ -6614,7 +6619,11 @@ function renderOrdersFromCache() {
   // شارة موحّدة: عدد الطلبات الجديدة + عدد الرسائل غير المقروءة المرتبطة بالطلبات (تبقى ظاهرة لين يفتحها الموظف فعلياً)
   const newCount = allRows.filter(({o}) => !o.processingAt && o.status !== 'cancelled' && o.status !== 'completed').length;
   const totalUnreadMsgs = Object.values(unreadByOrderId).reduce((s,n) => s+n, 0);
-  const combinedBadgeCount = newCount + totalUnreadMsgs;
+  const storeRowsAll = ordersAdminCache.storeRows || [];
+  const storeNewCount = storeRowsAll.filter(({o}) => o.seenByStaff !== true && o.status !== 'cancelled' && o.status !== 'completed').length;
+  const combinedBadgeCount = newCount + totalUnreadMsgs + storeNewCount;
+  const stEl = document.getElementById('ordersTabStoresCount');
+  if (stEl) stEl.textContent = storeNewCount > 0 ? `(${storeNewCount} جديد)` : (storeRowsAll.length ? `(${storeRowsAll.filter(({o}) => o.status !== 'completed' && o.status !== 'cancelled').length})` : '');
   ['ordersUnreadBadge','ordersUnreadBadge2','topOrdersBadge'].forEach(bid => {
     const badge = document.getElementById(bid);
     if (!badge) return;
@@ -6641,6 +6650,16 @@ function renderOrdersFromCache() {
 
   // تصنيف الطلبات للتبويبات (أي طلب فيه مشكلة ينتقل لتبويب "المشاكل" فقط، ويُستثنى من تبويبه العادي)
   let rows;
+  if (currentOrdersTab === 'stores') {
+    // طلبات متاجر الأساتذة: للمتابعة والمراسلة — التجهيز والتوصيل على الأستاذ نفسه
+    const sr = storeRowsAll;
+    if (!sr.length) { list.innerHTML = '<p>لا توجد طلبات متاجر بعد.</p>'; return; }
+    list.innerHTML = '<p style="font-size:12.5px;color:#64748b;margin:0 0 8px;">🏪 هذي طلبات من متاجر الأساتذة، والأستاذ هو اللي يجهّزها ويوصّلها. تگدر تتابعها وتراسل الزبون.</p>' +
+      sr.map(({id, o}) => `<div style="font-size:12px;font-weight:800;color:#b8862a;margin:8px 4px 2px;">🏪 متجر ${o.fulfillmentTeacherName || ''}${o.seenByStaff !== true ? ' — <span style="color:#dc2626;">جديد</span>' : ''}</div>` + renderOrderCard(id, o, unreadByOrderId[id] || 0, 'arrived')).join('');
+    const unseen = sr.filter(({o}) => o.seenByStaff !== true);
+    if (unseen.length) Promise.all(unseen.map(({id}) => db.collection('orders').doc(id).update({ seenByStaff: true }))).then(() => refreshBellBadge()).catch(e => console.error('mark store orders seen failed', e));
+    return;
+  }
   if (currentOrdersTab === 'problems') {
     rows = allRows.filter(({o}) => !!o.hasProblem);
   } else if (currentOrdersTab === 'new') {
@@ -6687,14 +6706,23 @@ document.getElementById('ordersTabArrived').onclick = () => switchOrdersTab('arr
 document.getElementById('ordersTabCancelled').onclick = () => switchOrdersTab('cancelled');
 document.getElementById('ordersTabProblems').onclick = () => switchOrdersTab('problems');
 
+// زر 📦: إذا ماكو طلبات مكتبة جديدة بس أكو طلبات متاجر جديدة، يفتح تبويب المتاجر مباشرة
+function khPreferredOrdersTab() {
+  try {
+    const c = ordersAdminCache || {};
+    const libNew = (c.allRows || []).filter(({o}) => !o.processingAt && o.status !== 'cancelled' && o.status !== 'completed' && !o.hasProblem).length;
+    const storeNew = (c.storeRows || []).filter(({o}) => o.seenByStaff !== true && o.status !== 'cancelled' && o.status !== 'completed').length;
+    return (!libNew && storeNew) ? 'stores' : 'new';
+  } catch (e) { return 'new'; }
+}
 function switchOrdersTab(tab) {
   currentOrdersTab = tab;
-  const colors = { new:'#dc2626', processing:'#0e6fa8', delivering:'#16a34a', arrived:'#6b21a8', cancelled:'#374151', problems:'#b91c1c' };
-  ['ordersTabNew','ordersTabProcessing','ordersTabDelivering','ordersTabArrived','ordersTabCancelled','ordersTabProblems'].forEach(bid => {
+  const colors = { new:'#dc2626', processing:'#0e6fa8', delivering:'#16a34a', arrived:'#6b21a8', cancelled:'#374151', problems:'#b91c1c', stores:'#b8862a' };
+  ['ordersTabNew','ordersTabProcessing','ordersTabDelivering','ordersTabArrived','ordersTabCancelled','ordersTabProblems','ordersTabStores'].forEach(bid => {
     const btn = document.getElementById(bid);
     btn.style.background = ''; btn.style.color = '';
   });
-  const activeBtnId = { new:'ordersTabNew', processing:'ordersTabProcessing', delivering:'ordersTabDelivering', arrived:'ordersTabArrived', cancelled:'ordersTabCancelled', problems:'ordersTabProblems' }[tab];
+  const activeBtnId = { new:'ordersTabNew', processing:'ordersTabProcessing', delivering:'ordersTabDelivering', arrived:'ordersTabArrived', cancelled:'ordersTabCancelled', problems:'ordersTabProblems', stores:'ordersTabStores' }[tab];
   document.getElementById(activeBtnId).style.background = colors[tab];
   document.getElementById(activeBtnId).style.color = '#fff';
   document.getElementById('convertAllToDeliveringBtn').classList.toggle('hidden', tab !== 'processing');

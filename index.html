@@ -7269,9 +7269,19 @@ async function khMsLoadOrders() {
       .map(o => ({ ...o, status: (o.fulfillment === 'teacher' || typeof computeEffectiveStatus !== 'function') ? (o.status || 'pending') : computeEffectiveStatus(o) }))
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     // ===== المبلغ المستحق لهذا المتجر (نفس حساب قسم «متاجر الأساتذة») =====
-    let libOwed = 0, libCount = 0, selfOwed = 0, selfCount = 0;
+    let libOwed = 0, libCount = 0, selfOwed = 0, selfCount = 0, pendingDue = 0, pendingCount = 0;
     orders.forEach(o => {
       if (o.status === 'cancelled') return;
+      if (o.status !== 'completed') {
+        // بالطريق: ما ينحسب مستحق لحد ما يوصل، بس نعرضه كمبلغ متوقع
+        if (khOrderDeliveredBy(o) === 'library') {
+          let est = 0;
+          if (o.fulfillment === 'teacher') est = khStoreOrderTeacherDue(o);
+          else (o.items || []).forEach(it => { if (shareById[it.bookId] != null) est += shareById[it.bookId] * (it.qty || 1); });
+          if (est > 0) { pendingDue += est; pendingCount++; }
+        }
+        return;
+      }
       if (khOrderDeliveredBy(o) === 'teacher' && o.fulfillmentTeacherName === name) {
         if (o.platformOwedSettled) return;
         let owed = o.platformOwedToLibrary;
@@ -7290,14 +7300,15 @@ async function khMsLoadOrders() {
     const fmt = n => Math.round(n).toLocaleString('en-US');
     const net = libOwed - selfOwed;
     const summaryHtml = `<div class="kh-ms-due">
-        <div class="kh-ms-due-row"><span>💰 مستحق للأستاذ (طلبات توصيل المكتبة)</span><b>${fmt(libOwed)} د.ع</b><small>${libCount} طلب</small></div>
-        <div class="kh-ms-due-row"><span>💸 مستحق للمكتبة (طلبات توصيل الأستاذ)</span><b>${fmt(selfOwed)} د.ع</b><small>${selfCount} طلب</small></div>
+        <div class="kh-ms-due-row"><span>💰 مستحق للأستاذ (طلبات واصلة — توصيل المكتبة)</span><b>${fmt(libOwed)} د.ع</b><small>${libCount} طلب</small></div>
+        <div class="kh-ms-due-row"><span>💸 مستحق للمكتبة (طلبات واصلة — توصيل الأستاذ)</span><b>${fmt(selfOwed)} د.ع</b><small>${selfCount} طلب</small></div>
+        ${pendingCount ? `<div class="kh-ms-due-row"><span>⏳ متوقع من طلبات بعدها بالطريق (ما تنحسب لحد ما توصل)</span><b style="color:#cbd5e1;font-size:15px;">${fmt(pendingDue)} د.ع</b><small>${pendingCount} طلب</small></div>` : ''}
         <div class="kh-ms-due-net ${net >= 0 ? 'pos' : 'neg'}">⚖️ ${net >= 0 ? 'الصافي المستحق للأستاذ' : 'الصافي المستحق للمكتبة'}: <b>${fmt(Math.abs(net))} د.ع</b></div>
         <div class="kh-ms-stats">
           <span>🕒 جديد <b>${cnt('pending')}</b></span><span>📦 قيد التجهيز <b>${cnt('processing')}</b></span>
           <span>🚚 قيد التوصيل <b>${cnt('delivering')}</b></span><span>✅ واصل <b>${cnt('completed')}</b></span><span>❌ ملغي <b>${cnt('cancelled')}</b></span>
         </div>
-        <p class="kh-ms-due-note">المبالغ غير المسدَّدة فقط. التسديد يصير من قسم «متاجر الأساتذة».</p>
+        <p class="kh-ms-due-note">المستحق = الطلبات الواصلة وغير المسدَّدة فقط. التسديد يصير من قسم «متاجر الأساتذة».</p>
       </div>`;
     orders = orders.filter(o => {
       const st = o.status || 'pending';
@@ -7314,7 +7325,10 @@ async function khMsLoadOrders() {
         <div class="kh-ms-om">📞 ${khEscAttr(o.studentPhone || o.phone || '')} — 📍 ${khEscAttr(o.province || '')} ${o.district ? '- ' + khEscAttr(o.district) : ''}</div>
         <div class="kh-ms-om">🕒 ${o.createdAt ? new Date(o.createdAt).toLocaleString('ar-IQ') : ''}</div>
         <div class="kh-ms-oi">${mine.map(it => `• ${khEscAttr(it.title)} × ${it.qty || 1}`).join('<br>')}</div>
-        <div class="kh-ms-om">💰 المجموع: ${o.totalPrice || ''} د.ع — 🚚 ${khOrderDeliveredBy(o) === 'teacher' ? 'وصّله الأستاذ' : 'وصّلته المكتبة'}</div>
+        <div class="kh-ms-om">💰 المجموع: ${o.totalPrice || ''} د.ع (منها توصيل ${o.deliveryFee || 0}) — 🚚 ${khOrderDeliveredBy(o) === 'teacher' ? 'وصّله الأستاذ' : 'وصّلته المكتبة'}</div>
+        ${o.status !== 'cancelled' && o.fulfillment === 'teacher' ? (khOrderDeliveredBy(o) === 'library'
+          ? `<div class="kh-ms-om" style="color:#15803d;font-weight:800;">💰 حصة الأستاذ من هذا الطلب: ${Math.round(khStoreOrderTeacherDue(o)).toLocaleString('en-US')} د.ع${o.status === 'completed' ? '' : ' — تنحسب أول ما يوصل'}</div>`
+          : `<div class="kh-ms-om" style="color:#b45309;font-weight:800;">💸 محسوب «وصّله الأستاذ»</div>`) : ''}
         ${o.fulfillment === 'teacher' ? `<div class="kh-ms-dby">منو وصّل الطلب؟
           <button type="button" class="${khOrderDeliveredBy(o) === 'library' ? 'on' : ''}" onclick="khSetDeliveredBy('${o.id}','library')">📚 المكتبة</button>
           <button type="button" class="${khOrderDeliveredBy(o) === 'teacher' ? 'on' : ''}" onclick="khSetDeliveredBy('${o.id}','teacher')">🧑‍🏫 الأستاذ</button></div>` : ''}
@@ -8240,6 +8254,10 @@ async function loadAdminTeacherStores() {
       const o = d.data();
       if (o.status === 'cancelled') return;
       const isToday = (o.createdAt||0) >= todayStartMs;
+      if (computeEffectiveStatus(o) !== 'completed') { // المستحق بس للطلبات الواصلة — الباقي نعدّه بطلبات اليوم فقط
+        if (isToday) { const nm = o.fulfillmentTeacherName || ((o.items||[]).map(it => (bookInfoById[it.bookId]||{}).teacherName).find(Boolean)); if (nm) todayCount[nm] = (todayCount[nm]||0) + 1; }
+        return;
+      }
       if (khOrderDeliveredBy(o) === 'teacher' && o.fulfillmentTeacherName) {
         const name = o.fulfillmentTeacherName;
         if (!o.platformOwedSettled) {
@@ -8787,7 +8805,7 @@ function khStoreOrderTeacherDue(o) {
 }
 function khOrderDeliveredBy(o) {
   if (o && (o.deliveredBy === 'library' || o.deliveredBy === 'teacher')) return o.deliveredBy;
-  return o && o.fulfillment === 'teacher' ? 'teacher' : 'library';
+  return 'library'; // طلبات المتاجر توصّلها المكتبة افتراضياً — «الأستاذ وصّله» يتحدد يدوياً
 }
 async function khSetDeliveredBy(id, who) {
   try {
@@ -8963,7 +8981,7 @@ async function loadTeacherEarningsAdmin() {
   const teachersSnap = await db.collection('teachers').get();
   // نشمل كل الطلبات غير الملغاة (مو بس المكتملة) — عشان الطلبات "قيد التنفيذ" تظهر هي كمان
   const ordersSnap = await db.collection('orders').get();
-  const relevantOrders = ordersSnap.docs.filter(d => d.data().status !== 'cancelled' && d.data().fulfillment !== 'teacher');
+  const relevantOrders = ordersSnap.docs.filter(d => { const o = d.data(); return computeEffectiveStatus(o) === 'completed' && !(o.fulfillment === 'teacher' && khOrderDeliveredBy(o) === 'teacher'); });
   const booksSnap = await db.collection('books').get();
   const bookInfoById = {};
   booksSnap.docs.forEach(d => { const b = d.data(); if (b.teacherName) bookInfoById[d.id] = { teacherName: b.teacherName, teacherShare: b.teacherShare || 0 }; });
@@ -8975,6 +8993,7 @@ async function loadTeacherEarningsAdmin() {
       const o = d.data();
       const settled = o.teacherPayoutsSettled || {};
       if (settled[teacherName]) return;
+      if (o.fulfillment === 'teacher') { if (o.fulfillmentTeacherName === teacherName) unsettled += khStoreOrderTeacherDue(o); return; }
       if (o.teacherPayouts && o.teacherPayouts[teacherName] != null) {
         unsettled += o.teacherPayouts[teacherName];
       } else if (!o.teacherPayouts) {
@@ -9004,9 +9023,10 @@ async function settleTeacherEarnings(teacherName) {
   const ordersSnap = await db.collection('orders').get();
   const relevant = ordersSnap.docs.filter(d => {
     const o = d.data();
-    if (o.status === 'cancelled') return false;
-    if (o.fulfillment === 'teacher') return false; // هذي توصيل ذاتي، تنحسب بشاشة منفصلة
+    if (computeEffectiveStatus(o) !== 'completed') return false; // المستحق بس للطلبات الواصلة
+    if (o.fulfillment === 'teacher' && khOrderDeliveredBy(o) === 'teacher') return false; // توصيل ذاتي، تنحسب بشاشة منفصلة
     if (o.teacherPayoutsSettled && o.teacherPayoutsSettled[teacherName]) return false;
+    if (o.fulfillment === 'teacher') return o.fulfillmentTeacherName === teacherName; // طلب متجره ووصّلته المكتبة
     if (o.teacherPayouts) return !!o.teacherPayouts[teacherName];
     return true; // لسا ما انحسبت حصص هذا الطلب — نتحقق فعلياً بالأسفل بعد جلب بيانات الكتب
   });
@@ -9019,7 +9039,10 @@ async function settleTeacherEarnings(teacherName) {
     const o = d.data();
     let payouts = o.teacherPayouts;
     let rawAmount = 0;
-    if (payouts && payouts[teacherName] != null) {
+    if (o.fulfillment === 'teacher') {
+      rawAmount = khStoreOrderTeacherDue(o); // الكلي ناقص التوصيل
+      payouts = { ...(payouts||{}), [teacherName]: rawAmount };
+    } else if (payouts && payouts[teacherName] != null) {
       rawAmount = payouts[teacherName];
     } else {
       (o.items||[]).forEach(item => { const b = bookInfoById[item.bookId]; if (b && b.teacherName === teacherName) rawAmount += b.teacherShare * item.qty; });
